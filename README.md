@@ -2,6 +2,8 @@
 
 One-click dev server group orchestration for VS Code with visual configuration and event monitoring.
 
+See [FEATURES.md](FEATURES.md) for the full feature list.
+
 ## Quick start (3 clicks)
 
 1. Open the **DevStack** icon ($(server-process)) in the **Activity Bar** (left sidebar).
