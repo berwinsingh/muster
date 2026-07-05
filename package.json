@@ -1,0 +1,286 @@
+{
+  "name": "devstack",
+  "displayName": "DevStack",
+  "description": "One-click dev server group orchestration with MCP agent integration",
+  "version": "0.1.2",
+  "publisher": "devstack",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/berwinsingh/one-click-terminal-setup-vscode.git"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:devstack.groups",
+    "onCommand:devstack.createGroup",
+    "onCommand:devstack.openVisualEditor",
+    "onCommand:devstack.importExample",
+    "onCommand:devstack.openConfig"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "devstack.runGroup",
+        "title": "Run Group",
+        "category": "DevStack"
+      },
+      {
+        "command": "devstack.stopGroup",
+        "title": "Stop Group",
+        "category": "DevStack"
+      },
+      {
+        "command": "devstack.restartGroup",
+        "title": "Restart Group",
+        "category": "DevStack"
+      },
+      {
+        "command": "devstack.runService",
+        "title": "Run Service",
+        "category": "DevStack"
+      },
+      {
+        "command": "devstack.openConfig",
+        "title": "Open Config",
+        "category": "DevStack"
+      },
+      {
+        "command": "devstack.refresh",
+        "title": "Refresh",
+        "category": "DevStack",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "devstack.runGroupFromTree",
+        "title": "Run Group",
+        "category": "DevStack",
+        "icon": "$(play)"
+      },
+      {
+        "command": "devstack.stopGroupFromTree",
+        "title": "Stop Group",
+        "category": "DevStack",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "devstack.restartGroupFromTree",
+        "title": "Restart Group",
+        "category": "DevStack",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "devstack.runServiceFromTree",
+        "title": "Run Service",
+        "category": "DevStack",
+        "icon": "$(play)"
+      },
+      {
+        "command": "devstack.openVisualEditor",
+        "title": "Configure",
+        "category": "DevStack",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "devstack.createGroup",
+        "title": "Create Group",
+        "category": "DevStack",
+        "icon": "$(add)"
+      },
+      {
+        "command": "devstack.importExample",
+        "title": "Import Example",
+        "category": "DevStack",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "devstack.editGroup",
+        "title": "Edit Group",
+        "category": "DevStack",
+        "icon": "$(edit)"
+      }
+    ],
+    "viewsWelcome": [
+      {
+        "view": "devstack.groups",
+        "contents": "No server groups configured yet.\nUse the title bar icons: **+** Create Group, pencil **Configure**, or refresh.\n[Create Group](command:devstack.createGroup)\n[Import Example](command:devstack.importExample)\n[Open Visual Editor](command:devstack.openVisualEditor)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "devstack",
+          "title": "DevStack",
+          "icon": "$(server-process)"
+        }
+      ]
+    },
+    "views": {
+      "devstack": [
+        {
+          "id": "devstack.groups",
+          "name": "Server Groups"
+        },
+        {
+          "type": "webview",
+          "id": "devstack.issues",
+          "name": "Events"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "devstack.runGroup",
+          "when": "true"
+        },
+        {
+          "command": "devstack.stopGroup",
+          "when": "true"
+        },
+        {
+          "command": "devstack.restartGroup",
+          "when": "true"
+        },
+        {
+          "command": "devstack.runService",
+          "when": "true"
+        },
+        {
+          "command": "devstack.openConfig",
+          "when": "true"
+        },
+        {
+          "command": "devstack.refresh",
+          "when": "true"
+        },
+        {
+          "command": "devstack.openVisualEditor",
+          "when": "true"
+        },
+        {
+          "command": "devstack.createGroup",
+          "when": "true"
+        },
+        {
+          "command": "devstack.importExample",
+          "when": "true"
+        },
+        {
+          "command": "devstack.runGroupFromTree",
+          "when": "false"
+        },
+        {
+          "command": "devstack.stopGroupFromTree",
+          "when": "false"
+        },
+        {
+          "command": "devstack.restartGroupFromTree",
+          "when": "false"
+        },
+        {
+          "command": "devstack.runServiceFromTree",
+          "when": "false"
+        },
+        {
+          "command": "devstack.editGroup",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "devstack.createGroup",
+          "when": "view == devstack.groups",
+          "group": "navigation@1"
+        },
+        {
+          "command": "devstack.openVisualEditor",
+          "when": "view == devstack.groups",
+          "group": "navigation@2"
+        },
+        {
+          "command": "devstack.refresh",
+          "when": "view == devstack.groups",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "devstack.openVisualEditor",
+          "when": "view == devstack.groups && viewItem == error",
+          "group": "inline@1"
+        },
+        {
+          "command": "devstack.runGroupFromTree",
+          "when": "view == devstack.groups && viewItem == group",
+          "group": "inline@1"
+        },
+        {
+          "command": "devstack.stopGroupFromTree",
+          "when": "view == devstack.groups && viewItem == group",
+          "group": "inline@2"
+        },
+        {
+          "command": "devstack.restartGroupFromTree",
+          "when": "view == devstack.groups && viewItem == group",
+          "group": "inline@3"
+        },
+        {
+          "command": "devstack.runServiceFromTree",
+          "when": "view == devstack.groups && viewItem == service",
+          "group": "inline@1"
+        },
+        {
+          "command": "devstack.editGroup",
+          "when": "view == devstack.groups && viewItem == group",
+          "group": "1_edit@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "DevStack",
+      "properties": {
+        "devstack.defaultGroup": {
+          "type": "string",
+          "default": "",
+          "description": "Default server group id for status bar toggle"
+        },
+        "devstack.keepExistingTerminals": {
+          "type": "boolean",
+          "default": true,
+          "description": "Do not close existing terminals when starting a group"
+        },
+        "devstack.allowExternalCwd": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow service cwd outside the workspace folder"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "package": "npm run compile && vsce package",
+    "test": "node ./out/test/runTest.js",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/test-electron": "^2.4.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.0"
+  }
+}

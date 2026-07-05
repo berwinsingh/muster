@@ -1,0 +1,7 @@
+src/**
+**/*.map
+node_modules/**
+.vscode/launch.json
+.vscode/tasks.json
+esbuild.mjs
+tsconfig.json

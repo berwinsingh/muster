@@ -1,0 +1,165 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://devstack.dev/schemas/devstack.schema.json",
+  "title": "DevStack Configuration",
+  "description": "DevStack server group configuration for VS Code workspaces",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string", "default": "1.0.0" },
+    "extends": {
+      "type": "string",
+      "description": "Name of a user-global profile to extend"
+    },
+    "groups": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/group" },
+      "default": []
+    },
+    "monitoring": { "$ref": "#/definitions/monitoring" }
+  },
+  "definitions": {
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "group": { "type": "string" },
+        "reveal": { "type": "boolean" },
+        "focus": { "type": "boolean" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "command"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "command": { "type": "string", "minLength": 1 },
+        "cwd": { "type": "string" },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "envFile": { "type": "string" },
+        "readyPattern": { "type": "string" },
+        "healthUrl": { "type": "string", "format": "uri" },
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "delayMs": { "type": "integer", "minimum": 0 },
+        "presentation": { "$ref": "#/definitions/presentation" },
+        "python": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "venv": {
+              "type": "string",
+              "description": "Path to Python virtual environment (relative to cwd or absolute)"
+            }
+          }
+        },
+        "node": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "version": {
+              "type": "string",
+              "description": "Node.js version for nvm use (from .nvmrc or package.json engines)"
+            }
+          }
+        },
+        "shell": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prepend": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Commands run before the main command (venv activation, nvm use, etc.)"
+            }
+          }
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "services"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "layout": {
+          "type": "string",
+          "enum": ["dedicated", "aggregated", "split"],
+          "default": "dedicated"
+        },
+        "order": {
+          "type": "string",
+          "enum": ["parallel", "sequence"],
+          "default": "parallel"
+        },
+        "keepExistingTerminals": { "type": "boolean" },
+        "services": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/service" }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "groups"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "groups": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/group" }
+        }
+      }
+    },
+    "monitoringPattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "severity", "regex"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+        "regex": { "type": "string", "minLength": 1 },
+        "sources": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["terminal", "diagnostics"] },
+          "default": ["terminal"]
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "patterns": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/monitoringPattern" },
+          "default": []
+        },
+        "includeDiagnostics": { "type": "boolean", "default": true }
+      }
+    },
+    "userProfiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string", "default": "1.0.0" },
+        "profiles": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/profile" },
+          "default": []
+        }
+      }
+    }
+  }
+}

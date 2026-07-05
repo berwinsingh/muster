@@ -1,0 +1,72 @@
+{
+  "$schema": "../schemas/devstack.schema.json",
+  "version": "1.0.0",
+  "groups": [
+    {
+      "id": "full-stack",
+      "label": "Full Stack Dev",
+      "layout": "dedicated",
+      "order": "parallel",
+      "services": [
+        {
+          "id": "api",
+          "name": "FastAPI",
+          "command": "uvicorn main:app --reload --port 8000",
+          "cwd": "${workspaceFolder}/backend",
+          "envFile": "${workspaceFolder}/backend/.env",
+          "readyPattern": "Application startup complete",
+          "presentation": { "reveal": true }
+        },
+        {
+          "id": "worker",
+          "name": "Celery Worker",
+          "command": "celery -A app worker --loglevel=info",
+          "cwd": "${workspaceFolder}/backend",
+          "dependsOn": ["api"],
+          "delayMs": 2000
+        },
+        {
+          "id": "frontend",
+          "name": "Next.js",
+          "command": "pnpm dev",
+          "cwd": "${workspaceFolder}/frontend"
+        }
+      ]
+    },
+    {
+      "id": "quick-api",
+      "label": "API Only (Aggregated)",
+      "layout": "aggregated",
+      "order": "sequence",
+      "services": [
+        {
+          "id": "api",
+          "name": "FastAPI",
+          "command": "uvicorn main:app --reload --port 8000",
+          "cwd": "${workspaceFolder}/backend",
+          "readyPattern": "Application startup complete"
+        }
+      ]
+    },
+    {
+      "id": "split-demo",
+      "label": "Split Layout Demo",
+      "layout": "split",
+      "order": "parallel",
+      "services": [
+        {
+          "id": "api",
+          "name": "API",
+          "command": "echo 'API server starting...' && sleep 9999",
+          "cwd": "${workspaceFolder}"
+        },
+        {
+          "id": "web",
+          "name": "Web",
+          "command": "echo 'Web server starting...' && sleep 9999",
+          "cwd": "${workspaceFolder}"
+        }
+      ]
+    }
+  ]
+}
