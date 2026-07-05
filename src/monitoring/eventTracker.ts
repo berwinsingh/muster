@@ -45,12 +45,20 @@ export class EventTracker implements vscode.Disposable {
         this.processTerminalLine(groupId, serviceId, line);
       }),
       vscode.languages.onDidChangeDiagnostics(() => {
-        this.processDiagnostics();
+        try {
+          this.processDiagnostics();
+        } catch (err) {
+          console.warn('[DevStack] Diagnostics scan skipped:', err);
+        }
       })
     );
 
     this.refreshMonitoringConfig();
-    this.processDiagnostics();
+    try {
+      this.processDiagnostics();
+    } catch (err) {
+      console.warn('[DevStack] Initial diagnostics scan skipped:', err);
+    }
   }
 
   refreshMonitoringConfig(): void {

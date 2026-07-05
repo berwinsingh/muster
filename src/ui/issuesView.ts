@@ -633,6 +633,9 @@ export class IssuesViewProvider implements vscode.WebviewViewProvider {
     });
 
     webviewView.webview.html = getIssuesHtml(webviewView.webview);
+
+    // Fallback init if the webview 'ready' message is delayed or missed.
+    setTimeout(() => this.sendInit(), 100);
   }
 
   private getGroupsMeta(): Array<{ id: string; label: string; services: Array<{ id: string; name: string }> }> {
@@ -700,7 +703,7 @@ export function registerIssuesView(
 ): IssuesViewProvider {
   const provider = new IssuesViewProvider(eventTracker, processTracker);
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('devstack.issues', provider, {
+    vscode.window.registerWebviewViewProvider(ISSUES_VIEW_ID, provider, {
       webviewOptions: { retainContextWhenHidden: true },
     })
   );

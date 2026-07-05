@@ -2,7 +2,7 @@
   "name": "devstack",
   "displayName": "DevStack",
   "description": "One-click dev server group orchestration with MCP agent integration",
-  "version": "0.1.6",
+  "version": "0.1.9",
   "publisher": "devstack",
   "license": "MIT",
   "repository": {
@@ -18,7 +18,9 @@
   "icon": "media/icon.png",
   "activationEvents": [
     "onStartupFinished",
+    "workspaceContains:.vscode/devstack.json",
     "onView:devstack.groups",
+    "onView:devstack.issues",
     "onCommand:devstack.createGroup",
     "onCommand:devstack.openVisualEditor",
     "onCommand:devstack.importExample",
