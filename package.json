@@ -2,7 +2,7 @@
   "name": "devstack",
   "displayName": "DevStack",
   "description": "One-click dev server group orchestration with MCP agent integration",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "publisher": "devstack",
   "license": "MIT",
   "repository": {
@@ -110,7 +110,8 @@
     "viewsWelcome": [
       {
         "view": "devstack.groups",
-        "contents": "No server groups configured yet.\nUse the **+** (Create Group) and pencil (Configure) icons in the title bar.\n[Create Group](command:devstack.createGroup)\n[Import Example](command:devstack.importExample)\n[Open Visual Editor](command:devstack.openVisualEditor)"
+        "contents": "No server groups configured yet.\nUse the **+** (Create Group) and pencil (Configure) icons in the title bar.\n[Create Group](command:devstack.createGroup)\n[Import Example](command:devstack.importExample)\n[Open Visual Editor](command:devstack.openVisualEditor)",
+        "when": "!devstack.hasConfigFile && !devstack.hasGroups"
       }
     ],
     "viewsContainers": {
@@ -267,9 +268,11 @@
   },
   "scripts": {
     "compile": "node esbuild.mjs",
+    "compile:test": "node esbuild.mjs --test",
     "watch": "node esbuild.mjs --watch",
-    "package": "npm run compile && vsce package",
-    "test": "node ./out/test/runTest.js",
+    "prepare-icons": "node scripts/prepare-icons.mjs",
+    "package": "npm run prepare-icons && npm run compile && vsce package",
+    "test": "npm run compile:test && node --require ./src/test/vscode-shim.cjs --test dist-test/**/*.test.js",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {
