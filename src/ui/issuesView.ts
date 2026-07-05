@@ -1,7 +1,11 @@
 import * as vscode from 'vscode';
 import { loadMergedConfig } from '../config/loader';
+import { getDevStackWorkspaceFolder } from '../config/workspaceFolder';
 import { DevStackEvent, EventTracker, revealEvent } from '../monitoring/eventTracker';
 import { ProcessTracker } from '../orchestration/processTracker';
+
+/** Must match package.json contributes.views id exactly. */
+export const ISSUES_VIEW_ID = 'devstack.issues';
 
 type IssuesFilters = {
   dateRange: 'today' | '3d' | 'maxDays' | 'all';
@@ -340,6 +344,14 @@ function getIssuesHtml(webview: vscode.Webview): string {
     let maxDays = 7;
     let categories = [];
     let collapsedDates = new Set();
+    let initialized = false;
+
+    setTimeout(() => {
+      if (!initialized) {
+        renderFilters([], { maxDays: 7, categories: [] });
+        renderEvents([], { error: 0, warning: 0, info: 0 }, false);
+      }
+    }, 500);
 
     function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 
@@ -537,6 +549,7 @@ function getIssuesHtml(webview: vscode.Webview): string {
     window.addEventListener('message', (event) => {
       const msg = event.data;
       if (msg.type === 'init') {
+        initialized = true;
         renderFilters(msg.groupsMeta, msg.monitoringMeta);
         renderEvents(msg.events, msg.severityCounts, msg.hasAnyEvents);
       }
@@ -553,6 +566,7 @@ function getIssuesHtml(webview: vscode.Webview): string {
 
 export class IssuesViewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
+  private disposed = false;
   private filters: IssuesFilters = {
     dateRange: 'all',
     severity: 'all',
@@ -574,10 +588,13 @@ export class IssuesViewProvider implements vscode.WebviewViewProvider {
     _token: vscode.CancellationToken
   ): void {
     this.view = webviewView;
+    this.disposed = false;
     webviewView.webview.options = { enableScripts: true };
-    webviewView.webview.html = getIssuesHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage(async (msg: WebviewMessage) => {
+      if (this.disposed) {
+        return;
+      }
       if (msg.type === 'ready') {
         this.sendInit();
         return;
@@ -603,11 +620,24 @@ export class IssuesViewProvider implements vscode.WebviewViewProvider {
         }
       }
     });
+
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        this.sendInit();
+      }
+    });
+
+    webviewView.onDidDispose(() => {
+      this.disposed = true;
+      this.view = undefined;
+    });
+
+    webviewView.webview.html = getIssuesHtml(webviewView.webview);
   }
 
   private getGroupsMeta(): Array<{ id: string; label: string; services: Array<{ id: string; name: string }> }> {
     try {
-      const config = loadMergedConfig(vscode.workspace.workspaceFolders?.[0]);
+      const config = loadMergedConfig(getDevStackWorkspaceFolder());
       return config.groups.map((g) => ({
         id: g.id,
         label: g.label,
@@ -634,7 +664,7 @@ export class IssuesViewProvider implements vscode.WebviewViewProvider {
   }
 
   private sendInit(): void {
-    if (!this.view) {
+    if (!this.view || this.disposed) {
       return;
     }
     const { events, severityCounts, hasAnyEvents } = this.buildPayload();
@@ -649,7 +679,7 @@ export class IssuesViewProvider implements vscode.WebviewViewProvider {
   }
 
   pushUpdate(): void {
-    if (!this.view?.visible) {
+    if (!this.view || this.disposed) {
       return;
     }
     const { events, severityCounts, hasAnyEvents } = this.buildPayload();
@@ -657,7 +687,7 @@ export class IssuesViewProvider implements vscode.WebviewViewProvider {
   }
 
   refreshMeta(): void {
-    if (this.view?.visible) {
+    if (this.view && !this.disposed) {
       this.sendInit();
     }
   }

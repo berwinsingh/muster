@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { scanCommandSuggestions } from '../config/commandSuggestions';
+import { normalizeConfigIds } from '../config/slugify';
 import { substituteVariables } from '../config/loader';
 import {
   detectPythonVenvs,
@@ -9,6 +10,7 @@ import {
 } from '../config/runtimeDetect';
 import { ServiceConfig } from '../config/schema';
 import { WritableWorkspaceConfig, getExampleConfig, readWritableWorkspaceConfig, saveWorkspaceConfig } from '../config/writer';
+import { getDevStackWorkspaceFolder } from '../config/workspaceFolder';
 import { openConfigEditor } from './configEditor';
 
 type WebviewMessage =
@@ -908,7 +910,7 @@ export async function openVisualConfigEditor(
   context: vscode.ExtensionContext,
   onSaved?: () => void
 ): Promise<void> {
-  const folder = vscode.workspace.workspaceFolders?.[0];
+  const folder = getDevStackWorkspaceFolder();
   if (!folder) {
     vscode.window.showWarningMessage('Open a workspace folder to configure DevStack.');
     return;
@@ -1069,7 +1071,7 @@ export async function openVisualConfigEditor(
 
     if (msg.type === 'save') {
       try {
-        const config = msg.config as WritableWorkspaceConfig;
+        const config = normalizeConfigIds(msg.config as WritableWorkspaceConfig);
         validateConfig(config);
         await saveWorkspaceConfig(folder, config);
         panel.webview.postMessage({ type: 'saved' });
@@ -1077,12 +1079,17 @@ export async function openVisualConfigEditor(
 
         const runGroupId = (msg as { runGroupId?: string }).runGroupId;
         if (runGroupId) {
-          await vscode.commands.executeCommand('devstack.runGroup', runGroupId);
+          const savedGroup = config.groups.find((g) => g.id === runGroupId) ?? config.groups[0];
+          if (savedGroup) {
+            await vscode.commands.executeCommand('devstack.runGroup', savedGroup.id);
+          }
         }
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        void vscode.window.showErrorMessage(`DevStack save failed: ${message}`);
         panel.webview.postMessage({
           type: 'error',
-          message: err instanceof Error ? err.message : String(err),
+          message,
         });
       }
     }
@@ -1137,7 +1144,7 @@ export async function importExampleConfig(
   context: vscode.ExtensionContext,
   onSaved?: () => void
 ): Promise<void> {
-  const folder = vscode.workspace.workspaceFolders?.[0];
+  const folder = getDevStackWorkspaceFolder();
   if (!folder) {
     vscode.window.showWarningMessage('Open a workspace folder first.');
     return;

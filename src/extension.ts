@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { loadMergedConfig } from './config/loader';
+import { getDevStackWorkspaceFolder, hasWorkspaceConfigFile } from './config/workspaceFolder';
 import { startIpcServer } from './ipc/server';
 import { EventTracker } from './monitoring/eventTracker';
 import { registerMcpProvider } from './mcpProvider';
@@ -17,7 +18,7 @@ import { openConfigEditor } from './ui/configEditor';
 import { registerIssuesView } from './ui/issuesView';
 import { pickGroup, pickService, resolveGroupId } from './ui/quickPick';
 import { registerStatusBar, DevStackStatusBar } from './ui/statusBar';
-import { registerTreeView, DevStackTreeProvider, DevStackTreeItem } from './ui/treeView';
+import { registerTreeView, DevStackTreeProvider, DevStackTreeItem, devStackHasGroups } from './ui/treeView';
 import { registerWelcomeCommands } from './ui/welcomeView';
 
 let tracker: ProcessTracker | undefined;
@@ -28,9 +29,35 @@ let eventTracker: EventTracker | undefined;
 let issuesView: ReturnType<typeof registerIssuesView> | undefined;
 
 function onConfigChanged(): void {
+  void updateDevStackContext();
   treeProvider?.refresh();
   eventTracker?.refreshMonitoringConfig();
   issuesView?.refreshMeta();
+}
+
+async function updateDevStackContext(): Promise<void> {
+  const folder = getDevStackWorkspaceFolder();
+  const hasConfigFile = hasWorkspaceConfigFile(folder);
+  const hasGroups = devStackHasGroups();
+
+  await vscode.commands.executeCommand('setContext', 'devstack.hasConfigFile', hasConfigFile);
+  await vscode.commands.executeCommand('setContext', 'devstack.hasGroups', hasGroups);
+}
+
+function watchWorkspaceConfig(context: vscode.ExtensionContext): void {
+  const folder = getDevStackWorkspaceFolder();
+  if (!folder) {
+    return;
+  }
+
+  const pattern = new vscode.RelativePattern(folder, '.vscode/devstack.json');
+  const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+  const refresh = (): void => onConfigChanged();
+
+  watcher.onDidChange(refresh);
+  watcher.onDidCreate(refresh);
+  watcher.onDidDelete(refresh);
+  context.subscriptions.push(watcher);
 }
 
 function registerConfigCommands(context: vscode.ExtensionContext): void {
@@ -78,6 +105,10 @@ export function activate(context: vscode.ExtensionContext): void {
   issuesView = registerIssuesView(context, eventTracker, tracker);
   statusBar = registerStatusBar(context, runner);
 
+  void updateDevStackContext();
+  treeProvider.refresh();
+  watchWorkspaceConfig(context);
+
   tracker.onDidChange(() => {
     statusBar?.update();
     treeProvider?.refresh();
@@ -94,7 +125,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      const config = loadMergedConfig(vscode.workspace.workspaceFolders?.[0]);
+      const config = loadMergedConfig(getDevStackWorkspaceFolder());
       if (!validateGroupId(id, config.groups.map((g) => g.id))) {
         return;
       }
@@ -119,7 +150,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      const config = loadMergedConfig(vscode.workspace.workspaceFolders?.[0]);
+      const config = loadMergedConfig(getDevStackWorkspaceFolder());
       if (!validateGroupId(id, config.groups.map((g) => g.id))) {
         return;
       }
@@ -143,7 +174,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      const config = loadMergedConfig(vscode.workspace.workspaceFolders?.[0]);
+      const config = loadMergedConfig(getDevStackWorkspaceFolder());
       if (!validateGroupId(id, config.groups.map((g) => g.id))) {
         return;
       }
@@ -165,7 +196,7 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
 
-        const config = loadMergedConfig(vscode.workspace.workspaceFolders?.[0]);
+        const config = loadMergedConfig(getDevStackWorkspaceFolder());
         let gid = groupId;
         let sid = serviceId;
 

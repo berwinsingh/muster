@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
 import { loadMergedConfig } from '../config/loader';
+import { getDevStackWorkspaceFolder, hasWorkspaceConfigFile } from '../config/workspaceFolder';
 import { GroupConfig, ServiceStatus } from '../config/schema';
 import { EventTracker } from '../monitoring/eventTracker';
 import { GroupRunner } from '../orchestration/groupRunner';
 import { ProcessTracker } from '../orchestration/processTracker';
+
+/** Must match package.json contributes.views id exactly. */
+export const TREE_VIEW_ID = 'devstack.groups';
 
 type TreeItemContext = 'group' | 'service' | 'welcome' | 'error';
 
@@ -76,7 +80,7 @@ export class DevStackTreeProvider implements vscode.TreeDataProvider<DevStackTre
   }
 
   getChildren(element?: DevStackTreeItem): DevStackTreeItem[] {
-    const folder = vscode.workspace.workspaceFolders?.[0];
+    const folder = getDevStackWorkspaceFolder();
     let config;
     try {
       config = loadMergedConfig(folder);
@@ -101,6 +105,22 @@ export class DevStackTreeProvider implements vscode.TreeDataProvider<DevStackTre
 
     if (!element) {
       if (config.groups.length === 0) {
+        if (hasWorkspaceConfigFile(folder)) {
+          const item = new DevStackTreeItem(
+            'error',
+            'error',
+            '',
+            'DevStack config has no groups — click to configure',
+            vscode.TreeItemCollapsibleState.None,
+            undefined,
+            'Open the visual editor to add server groups.'
+          );
+          item.command = {
+            command: 'devstack.openVisualEditor',
+            title: 'Open Visual Editor',
+          };
+          return [item];
+        }
         return [];
       }
       return config.groups.map((group) => {
@@ -167,7 +187,7 @@ export function registerTreeView(
   eventTracker?: EventTracker
 ): DevStackTreeProvider {
   const provider = new DevStackTreeProvider(runner, tracker, eventTracker);
-  const treeView = vscode.window.createTreeView('devstack.groups', {
+  const treeView = vscode.window.createTreeView(TREE_VIEW_ID, {
     treeDataProvider: provider,
     showCollapseAll: true,
   });
@@ -176,7 +196,19 @@ export function registerTreeView(
 }
 
 export function getGroupFromTreeItem(item: DevStackTreeItem): GroupConfig | undefined {
-  const folder = vscode.workspace.workspaceFolders?.[0];
+  const folder = getDevStackWorkspaceFolder();
   const config = loadMergedConfig(folder);
   return config.groups.find((g) => g.id === item.groupId);
+}
+
+export function devStackHasGroups(): boolean {
+  try {
+    const folder = getDevStackWorkspaceFolder();
+    if (!folder) {
+      return false;
+    }
+    return loadMergedConfig(folder).groups.length > 0;
+  } catch {
+    return false;
+  }
 }

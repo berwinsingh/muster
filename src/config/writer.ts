@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { normalizeConfigIds } from './slugify';
 import { GroupConfig, MonitoringConfig, WorkspaceConfigSchema } from './schema';
 import { getWorkspaceConfigPath } from './paths';
 
@@ -32,15 +33,25 @@ export async function readWritableWorkspaceConfig(
   return { version: '1.0.0', groups: [] };
 }
 
+export function buildWorkspaceConfigPayload(config: WritableWorkspaceConfig): Record<string, unknown> {
+  const normalized = normalizeConfigIds(config);
+  const validated = WorkspaceConfigSchema.parse({
+    version: normalized.version ?? '1.0.0',
+    groups: normalized.groups,
+    monitoring: normalized.monitoring,
+  });
+
+  return {
+    $schema: '../schemas/devstack.schema.json',
+    ...validated,
+  };
+}
+
 export async function saveWorkspaceConfig(
   workspaceFolder: vscode.WorkspaceFolder,
   config: WritableWorkspaceConfig
 ): Promise<void> {
-  const validated = WorkspaceConfigSchema.parse({
-    version: config.version ?? '1.0.0',
-    groups: config.groups,
-    monitoring: config.monitoring,
-  });
+  const payload = buildWorkspaceConfigPayload(config);
 
   const configPath = getWorkspaceConfigPath(workspaceFolder.uri.fsPath);
   const uri = vscode.Uri.file(configPath);
@@ -51,11 +62,6 @@ export async function saveWorkspaceConfig(
   } catch {
     await vscode.workspace.fs.createDirectory(vscodeDir);
   }
-
-  const payload = {
-    $schema: '../schemas/devstack.schema.json',
-    ...validated,
-  };
 
   await vscode.workspace.fs.writeFile(
     uri,

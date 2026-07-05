@@ -7,6 +7,8 @@ import {
   diagnosticSeverityToEventSeverity,
   resolveMonitoringConfig,
 } from './patterns';
+import { matchTerminalLine } from './matchLine';
+import { getDevStackWorkspaceFolder } from '../config/workspaceFolder';
 
 export type DevStackEvent = {
   id: string;
@@ -27,12 +29,6 @@ export type DevStackEvent = {
 };
 
 const MAX_EVENTS = 500;
-
-const SEVERITY_RANK: Record<DevStackEvent['severity'], number> = {
-  error: 3,
-  warning: 2,
-  info: 1,
-};
 
 export class EventTracker implements vscode.Disposable {
   private readonly events: DevStackEvent[] = [];
@@ -59,7 +55,7 @@ export class EventTracker implements vscode.Disposable {
 
   refreshMonitoringConfig(): void {
     try {
-      const config = loadMergedConfig(vscode.workspace.workspaceFolders?.[0]);
+      const config = loadMergedConfig(getDevStackWorkspaceFolder());
       this.monitoring = config.monitoring;
     } catch {
       this.monitoring = undefined;
@@ -76,7 +72,7 @@ export class EventTracker implements vscode.Disposable {
     serviceId: string
   ): { groupLabel: string; serviceName: string } {
     try {
-      const config = loadMergedConfig(vscode.workspace.workspaceFolders?.[0]);
+      const config = loadMergedConfig(getDevStackWorkspaceFolder());
       const group = config.groups.find((g) => g.id === groupId);
       const service = group?.services.find((s) => s.id === serviceId);
       return {
@@ -102,24 +98,7 @@ export class EventTracker implements vscode.Disposable {
       resolved.patterns.filter((p) => p.sources.includes('terminal'))
     );
 
-    const trimmed = line.trim();
-    if (!trimmed) {
-      return;
-    }
-
-    let bestMatch: (typeof patterns)[number] | undefined;
-    for (const pattern of patterns) {
-      if (!pattern.compiled.test(trimmed)) {
-        continue;
-      }
-      if (
-        !bestMatch ||
-        SEVERITY_RANK[pattern.severity] > SEVERITY_RANK[bestMatch.severity]
-      ) {
-        bestMatch = pattern;
-      }
-    }
-
+    const bestMatch = matchTerminalLine(line, patterns);
     if (!bestMatch) {
       return;
     }
@@ -132,7 +111,7 @@ export class EventTracker implements vscode.Disposable {
       groupLabel: meta.groupLabel,
       serviceName: meta.serviceName,
       severity: bestMatch.severity,
-      message: trimmed,
+      message: line.trim(),
       source: 'terminal',
       patternId: bestMatch.id,
       category: bestMatch.category,
@@ -145,7 +124,7 @@ export class EventTracker implements vscode.Disposable {
       return;
     }
 
-    const folder = vscode.workspace.workspaceFolders?.[0];
+    const folder = getDevStackWorkspaceFolder();
     if (!folder) {
       return;
     }
@@ -155,7 +134,12 @@ export class EventTracker implements vscode.Disposable {
     this.events.length = 0;
     this.events.push(...terminalEvents);
 
-    const config = loadMergedConfig(folder);
+    let config;
+    try {
+      config = loadMergedConfig(folder);
+    } catch {
+      return;
+    }
 
     for (const group of config.groups) {
       for (const service of group.services) {
