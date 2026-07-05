@@ -9,7 +9,7 @@ export function registerWelcomeCommands(context: vscode.ExtensionContext): void 
 export function getWelcomeContent(): string {
   return [
     'No server groups configured yet.',
-    'Use the title bar icons: **+** Create Group, pencil **Configure**, or refresh.',
+    'Use the **+** (Create Group) and pencil (Configure) icons in the title bar.',
     '[Create Group](command:devstack.createGroup)',
     '[Import Example](command:devstack.importExample)',
     '[Open Visual Editor](command:devstack.openVisualEditor)',

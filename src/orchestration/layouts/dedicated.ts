@@ -20,7 +20,10 @@ export async function launchDedicatedService(
   };
 
   if (service.presentation?.group) {
-    terminalOptions.location = { viewColumn: vscode.ViewColumn.Active, preserveFocus: !service.presentation.focus };
+    terminalOptions.location = {
+      viewColumn: vscode.ViewColumn.Active,
+      preserveFocus: !service.presentation.focus,
+    };
   }
 
   const terminal = vscode.window.createTerminal(terminalOptions);
@@ -31,39 +34,7 @@ export async function launchDedicatedService(
   }
 
   const command = buildServiceCommand(service);
-  const executed = await tryShellIntegrationExecute(terminal, command, group.id, service.id, tracker);
-  if (!executed) {
-    terminal.sendText(command, true);
-  }
-
+  terminal.sendText(command, true);
   tracker.appendOutput(group.id, service.id, `$ ${command}\n`);
   tracker.setStatus(group.id, service.id, 'running');
-}
-
-async function tryShellIntegrationExecute(
-  terminal: vscode.Terminal,
-  command: string,
-  groupId: string,
-  serviceId: string,
-  tracker: ProcessTracker
-): Promise<boolean> {
-  const shellIntegration = (terminal as vscode.Terminal & {
-    shellIntegration?: { executeCommand?: (cmd: string) => { read?: () => AsyncIterable<string> } };
-  }).shellIntegration;
-
-  if (!shellIntegration?.executeCommand) {
-    return false;
-  }
-
-  try {
-    const execution = shellIntegration.executeCommand(command);
-    if (execution?.read) {
-      for await (const chunk of execution.read()) {
-        tracker.appendOutput(groupId, serviceId, chunk);
-      }
-    }
-    return true;
-  } catch {
-    return false;
-  }
 }

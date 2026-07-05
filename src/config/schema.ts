@@ -78,6 +78,7 @@ export const MonitoringPatternSchema = z
   .object({
     id: z.string().min(1),
     severity: z.enum(['error', 'warning', 'info']),
+    category: z.string().optional(),
     regex: z.string().min(1),
     sources: z.array(z.enum(['terminal', 'diagnostics'])).default(['terminal']),
   })
@@ -85,6 +86,7 @@ export const MonitoringPatternSchema = z
 
 export const MonitoringSchema = z
   .object({
+    maxDays: z.number().int().positive().default(7),
     patterns: z.array(MonitoringPatternSchema).default([]),
     includeDiagnostics: z.boolean().default(true),
   })

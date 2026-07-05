@@ -25,9 +25,11 @@ type WebviewMessage =
 let activePanel: vscode.WebviewPanel | undefined;
 
 function getWebviewHtml(webview: vscode.Webview): string {
+  const codiconsUri = 'https://cdn.jsdelivr.net/npm/@vscode/codicons@0.0.35/dist/codicon.css';
   const csp = [
     "default-src 'none'",
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
+    `style-src ${webview.cspSource} 'unsafe-inline' https://cdn.jsdelivr.net`,
+    `font-src ${webview.cspSource} https://cdn.jsdelivr.net`,
     `script-src 'nonce-devstack-wizard'`,
   ].join('; ');
 
@@ -38,24 +40,61 @@ function getWebviewHtml(webview: vscode.Webview): string {
   <meta http-equiv="Content-Security-Policy" content="${csp}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DevStack Config</title>
+  <link rel="stylesheet" href="${codiconsUri}" />
   <style>
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       font-family: var(--vscode-font-family);
-      font-size: var(--vscode-font-size);
+      font-size: 13px;
       color: var(--vscode-foreground);
       background: var(--vscode-editor-background);
-      margin: 0; padding: 16px;
+      margin: 0;
       line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
     }
-    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 4px; }
-    .subtitle { color: var(--vscode-descriptionForeground); margin-bottom: 16px; font-size: 0.9rem; }
-    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+    .page-header {
+      padding: 20px 20px 0;
+      flex-shrink: 0;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 4px;
+      letter-spacing: -0.01em;
+    }
+    .subtitle {
+      color: var(--vscode-descriptionForeground);
+      margin: 0;
+      font-size: 13px;
+    }
+    .page-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px 88px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      align-items: center;
+    }
     button, .btn {
       background: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
-      border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer;
-      font-size: var(--vscode-font-size); font-family: inherit;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s ease;
     }
     button:hover { background: var(--vscode-button-hoverBackground); }
     button.secondary {
@@ -63,98 +102,289 @@ function getWebviewHtml(webview: vscode.Webview): string {
       color: var(--vscode-button-secondaryForeground);
     }
     button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
-    button.danger { background: var(--vscode-inputValidation-errorBackground); color: var(--vscode-errorForeground); }
-    button.icon { padding: 4px 8px; min-width: 28px; }
-    .link { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: underline; font-size: 0.85rem; }
+    button.icon-btn {
+      background: transparent;
+      color: var(--vscode-foreground);
+      padding: 4px;
+      border-radius: 4px;
+      min-width: 24px;
+      min-height: 24px;
+      justify-content: center;
+    }
+    button.icon-btn:hover {
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+    button.icon-btn.danger:hover {
+      color: var(--vscode-errorForeground);
+      background: var(--vscode-inputValidation-errorBackground);
+    }
     .groups { display: flex; flex-direction: column; gap: 12px; }
     .group-card {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px; background: var(--vscode-editor-inactiveSelectionBackground);
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      background: var(--vscode-editor-background);
       overflow: hidden;
     }
     .group-header {
-      display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
       background: var(--vscode-sideBar-background);
-      border-bottom: 1px solid var(--vscode-panel-border);
       cursor: pointer;
+      user-select: none;
     }
-    .group-header h2 { flex: 1; margin: 0; font-size: 0.95rem; font-weight: 600; }
-    .group-body { padding: 12px; display: none; }
+    .group-header h2 {
+      flex: 1;
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .chevron {
+      color: var(--vscode-descriptionForeground);
+      transition: transform 0.2s ease;
+      font-size: 14px;
+    }
+    .group-card.expanded .chevron { transform: rotate(90deg); }
+    .group-body {
+      padding: 16px 20px;
+      display: none;
+      border-top: 1px solid var(--vscode-widget-border);
+    }
     .group-card.expanded .group-body { display: block; }
-    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
     .field-row.three { grid-template-columns: 1fr 1fr 1fr; }
-    @media (max-width: 600px) { .field-row, .field-row.three { grid-template-columns: 1fr; } }
-    label { display: block; font-size: 0.8rem; color: var(--vscode-descriptionForeground); margin-bottom: 3px; }
+    @media (max-width: 640px) { .field-row, .field-row.three { grid-template-columns: 1fr; } }
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 4px;
+    }
     input, select, textarea {
-      width: 100%; padding: 6px 8px;
+      width: 100%;
+      padding: 6px 10px;
       background: var(--vscode-input-background);
       color: var(--vscode-input-foreground);
       border: 1px solid var(--vscode-input-border, transparent);
-      border-radius: 3px; font-family: inherit; font-size: inherit;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 13px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
     input:focus, select:focus, textarea:focus {
-      outline: 1px solid var(--vscode-focusBorder);
+      outline: none;
+      border-color: var(--vscode-focusBorder);
+      box-shadow: 0 0 0 1px var(--vscode-focusBorder);
     }
-    .input-with-btn { display: flex; gap: 6px; }
+    input[data-field="svc-command"], .prepend-lines {
+      font-family: var(--vscode-editor-font-family);
+      font-size: 12px;
+    }
+    .input-with-btn { display: flex; gap: 8px; align-items: stretch; }
     .input-with-btn input { flex: 1; }
-    .services { margin-top: 12px; }
-    .services h3 { font-size: 0.85rem; margin: 0 0 8px; color: var(--vscode-descriptionForeground); text-transform: uppercase; letter-spacing: 0.04em; }
+    .services { margin-top: 16px; }
+    .services-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .services-header h3 {
+      font-size: 11px;
+      font-weight: 500;
+      margin: 0;
+      color: var(--vscode-descriptionForeground);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
     .service-card {
       border: 1px solid var(--vscode-widget-border);
-      border-radius: 4px; padding: 10px; margin-bottom: 8px;
-      background: var(--vscode-editor-background);
+      border-left: 3px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      background: var(--vscode-sideBar-background);
     }
-    .service-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .service-header strong { font-size: 0.9rem; }
-    .suggestions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .service-card.status-ready { border-left-color: var(--vscode-testing-iconPassed, #73c991); }
+    .service-card.status-incomplete { border-left-color: var(--vscode-editorWarning-foreground, #cca700); }
+    .service-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .service-header strong { font-size: 13px; font-weight: 600; }
+    .suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
     .chip {
-      font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; cursor: pointer;
-      background: var(--vscode-badge-background); color: var(--vscode-badge-foreground);
-      border: none;
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      border: 1px solid var(--vscode-widget-border);
+      font-family: inherit;
+      transition: background 0.15s ease, border-color 0.15s ease;
     }
-    .chip:hover { opacity: 0.85; }
-    .status { padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; display: none; }
-    .status.success { display: block; background: var(--vscode-testing-iconPassed); color: var(--vscode-editor-background); }
-    .status.error { display: block; background: var(--vscode-inputValidation-errorBackground); color: var(--vscode-errorForeground); }
-    .empty { text-align: center; padding: 32px; color: var(--vscode-descriptionForeground); }
-    .chevron { transition: transform 0.15s; }
-    .group-card.expanded .chevron { transform: rotate(90deg); }
-    .footer { margin-top: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .chip:hover {
+      background: var(--vscode-list-hoverBackground);
+      border-color: var(--vscode-focusBorder);
+    }
+    .status {
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin: 0 20px 12px;
+      display: none;
+      font-size: 13px;
+    }
+    .status.success {
+      display: block;
+      background: var(--vscode-inputValidation-infoBackground);
+      color: var(--vscode-inputValidation-infoForeground);
+      border: 1px solid var(--vscode-inputValidation-infoBorder);
+    }
+    .status.error {
+      display: block;
+      background: var(--vscode-inputValidation-errorBackground);
+      color: var(--vscode-errorForeground);
+      border: 1px solid var(--vscode-inputValidation-errorBorder);
+    }
+    .empty {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--vscode-descriptionForeground);
+      border: 1px dashed var(--vscode-widget-border);
+      border-radius: 8px;
+      background: var(--vscode-sideBar-background);
+    }
+    .empty-icon {
+      font-size: 32px;
+      color: var(--vscode-descriptionForeground);
+      opacity: 0.6;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .empty p { margin: 0; font-size: 13px; }
+    .empty strong { color: var(--vscode-foreground); font-weight: 600; }
+    .sticky-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: var(--vscode-editor-background);
+      border-top: 1px solid var(--vscode-widget-border);
+      flex-wrap: wrap;
+      z-index: 10;
+    }
+    .footer-spacer { flex: 1; }
+    .footer-hint {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      opacity: 0.8;
+    }
+    .footer-link {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      cursor: pointer;
+      opacity: 0.7;
+      background: none;
+      border: none;
+      padding: 0;
+      text-decoration: underline;
+      font-family: inherit;
+    }
+    .footer-link:hover { opacity: 1; color: var(--vscode-textLink-foreground); }
     select[multiple] { min-height: 72px; }
-    .id-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 0.8rem; color: var(--vscode-descriptionForeground); }
-    .id-row code { font-family: var(--vscode-editor-font-family); font-size: 0.78rem; }
-    .advanced-toggle { font-size: 0.75rem; color: var(--vscode-textLink-foreground); cursor: pointer; margin-left: auto; }
-    .advanced-field { display: none; margin-bottom: 10px; }
+    .id-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+    }
+    .id-row code {
+      font-family: var(--vscode-editor-font-family);
+      font-size: 11px;
+      background: var(--vscode-textBlockQuote-background);
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .advanced-toggle {
+      font-size: 11px;
+      color: var(--vscode-textLink-foreground);
+      cursor: pointer;
+      margin-left: auto;
+      opacity: 0.85;
+    }
+    .advanced-toggle:hover { opacity: 1; }
+    .advanced-field { display: none; margin-bottom: 12px; }
     .advanced-field.visible { display: block; }
     .runtime-section {
-      margin-top: 10px; padding: 10px; border-radius: 4px;
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 6px;
       border: 1px solid var(--vscode-widget-border);
       background: var(--vscode-editor-inactiveSelectionBackground);
     }
-    .runtime-section h4 { margin: 0 0 8px; font-size: 0.8rem; font-weight: 600; }
-    .env-warning { font-size: 0.78rem; color: var(--vscode-editorWarning-foreground); margin-bottom: 8px; }
-    .env-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-    .prepend-lines { min-height: 56px; font-family: var(--vscode-editor-font-family); font-size: 0.85rem; }
-    .hint { font-size: 0.75rem; color: var(--vscode-descriptionForeground); margin-top: 3px; }
+    .runtime-section h4 {
+      margin: 0 0 10px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--vscode-descriptionForeground);
+    }
+    .alert-warning {
+      font-size: 12px;
+      color: var(--vscode-inputValidation-warningForeground);
+      background: var(--vscode-inputValidation-warningBackground);
+      border: 1px solid var(--vscode-inputValidation-warningBorder);
+      border-radius: 4px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .env-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .prepend-lines { min-height: 56px; resize: vertical; }
+    .hint { font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 4px; }
+    .field-block { margin-bottom: 12px; }
   </style>
 </head>
 <body>
-  <h1>DevStack Configuration</h1>
-  <p class="subtitle">Configure server groups visually — saved to <code>.vscode/devstack.json</code></p>
+  <header class="page-header">
+    <h1>DevStack Configuration</h1>
+    <p class="subtitle">Configure server groups and services for your workspace</p>
+  </header>
   <div id="status" class="status"></div>
-  <div class="toolbar">
-    <button id="addGroup">+ Add Group</button>
-    <button class="secondary" id="importExample">Import Example</button>
-    <span class="link" id="openJson">Advanced: Edit JSON</span>
-  </div>
-  <div id="groups" class="groups"></div>
-  <div id="empty" class="empty" style="display:none">
-    <p>No groups yet. Click <strong>Add Group</strong> to get started.</p>
-  </div>
-  <div class="footer">
-    <button id="save">Save Configuration</button>
-    <button class="secondary" id="saveAndRun" style="display:none">Save &amp; Run</button>
-  </div>
+  <main class="page-body">
+    <div class="toolbar">
+      <button id="addGroup"><span class="codicon codicon-add"></span> Add Group</button>
+      <button class="secondary" id="importExample"><span class="codicon codicon-cloud-download"></span> Import Example</button>
+    </div>
+    <div id="groups" class="groups"></div>
+    <div id="empty" class="empty" style="display:none">
+      <span class="codicon codicon-server-process empty-icon"></span>
+      <p>No server groups yet.<br/>Click <strong>Add Group</strong> to create your first stack.</p>
+    </div>
+  </main>
+  <footer class="sticky-footer">
+    <button id="save"><span class="codicon codicon-save"></span> Save</button>
+    <button class="secondary" id="saveAndRun" style="display:none"><span class="codicon codicon-play"></span> Save &amp; Run</button>
+    <span class="footer-spacer"></span>
+    <span class="footer-hint">Saved to .vscode/devstack.json</span>
+    <button type="button" class="footer-link" id="openJson">Advanced JSON</button>
+  </footer>
   <script nonce="devstack-wizard">
     const vscode = acquireVsCodeApi();
     let state = { version: '1.0.0', groups: [], monitoring: undefined };
@@ -223,7 +453,7 @@ function getWebviewHtml(webview: vscode.Webview): string {
       html += '<h4>Runtime Environment</h4>';
 
       if (warning) {
-        html += '<div class="env-warning">⚠ ' + esc(warning) + '</div>';
+        html += '<div class="alert-warning"><span class="codicon codicon-warning"></span><span>' + esc(warning) + '</span></div>';
       }
 
       if (venvs.length) {
@@ -285,14 +515,14 @@ function getWebviewHtml(webview: vscode.Webview): string {
         card.className = 'group-card' + (expanded ? ' expanded' : '');
         card.innerHTML =
           '<div class="group-header" data-gi="' + gi + '">' +
-            '<span class="chevron">▶</span>' +
+            '<span class="chevron codicon codicon-chevron-right"></span>' +
             '<h2>' + esc(group.label || group.id || 'Untitled Group') + '</h2>' +
-            '<button class="danger icon" data-action="delete-group" data-gi="' + gi + '" title="Delete group">✕</button>' +
+            '<button type="button" class="icon-btn danger" data-action="delete-group" data-gi="' + gi + '" title="Delete group"><span class="codicon codicon-trash"></span></button>' +
           '</div>' +
           '<div class="group-body">' +
             '<div class="id-row">' +
               '<span>ID: <code>' + esc(group.id) + '</code></span>' +
-              '<button type="button" class="secondary icon" data-action="copy-id" data-id="' + esc(group.id) + '" title="Copy ID">⎘</button>' +
+              '<button type="button" class="icon-btn secondary" data-action="copy-id" data-id="' + esc(group.id) + '" title="Copy ID"><span class="codicon codicon-copy"></span></button>' +
               '<span class="advanced-toggle" data-action="toggle-advanced" data-scope="g:' + gi + '">' + (advGroup ? 'Hide advanced' : 'Advanced') + '</span>' +
             '</div>' +
             '<div class="advanced-field' + (advGroup ? ' visible' : '') + '">' +
@@ -311,9 +541,9 @@ function getWebviewHtml(webview: vscode.Webview): string {
               '</select></div>' +
             '</div>' +
             '<div class="services">' +
-              '<h3>Services</h3>' +
+              '<div class="services-header"><h3>Services</h3></div>' +
               '<div class="service-list" data-gi="' + gi + '"></div>' +
-              '<button class="secondary" data-action="add-service" data-gi="' + gi + '">+ Add Service</button>' +
+              '<button type="button" class="secondary" data-action="add-service" data-gi="' + gi + '"><span class="codicon codicon-add"></span> Add Service</button>' +
             '</div>' +
           '</div>';
         container.appendChild(card);
@@ -325,13 +555,14 @@ function getWebviewHtml(webview: vscode.Webview): string {
             '<option value="' + esc(s.id) + '"' + ((svc.dependsOn||[]).includes(s.id)?' selected':'') + '>' + esc(s.name || s.id) + '</option>'
           ).join('');
           const svcEl = document.createElement('div');
-          svcEl.className = 'service-card';
+          const statusClass = svc.command?.trim() ? 'status-ready' : 'status-incomplete';
+          svcEl.className = 'service-card ' + statusClass;
           svcEl.innerHTML =
             '<div class="service-header"><strong>' + esc(svc.name || ('Service ' + (si+1))) + '</strong>' +
-            '<button class="danger icon" data-action="delete-service" data-gi="' + gi + '" data-si="' + si + '">✕</button></div>' +
+            '<button type="button" class="icon-btn danger" data-action="delete-service" data-gi="' + gi + '" data-si="' + si + '" title="Delete service"><span class="codicon codicon-trash"></span></button></div>' +
             '<div class="id-row">' +
               '<span>ID: <code>' + esc(svc.id) + '</code></span>' +
-              '<button type="button" class="secondary icon" data-action="copy-id" data-id="' + esc(svc.id) + '" title="Copy ID">⎘</button>' +
+              '<button type="button" class="icon-btn secondary" data-action="copy-id" data-id="' + esc(svc.id) + '" title="Copy ID"><span class="codicon codicon-copy"></span></button>' +
               '<span class="advanced-toggle" data-action="toggle-advanced" data-scope="s:' + gi + ':' + si + '">' + (advSvc ? 'Hide advanced' : 'Advanced') + '</span>' +
             '</div>' +
             '<div class="advanced-field' + (advSvc ? ' visible' : '') + '">' +
@@ -341,12 +572,12 @@ function getWebviewHtml(webview: vscode.Webview): string {
             '<div class="field-row">' +
               '<div><label>Name</label><input data-field="svc-name" data-gi="' + gi + '" data-si="' + si + '" value="' + esc(svc.name) + '" /></div>' +
             '</div>' +
-            '<div><label>Working Directory</label>' +
+            '<div class="field-block"><label>Working Directory</label>' +
               '<div class="input-with-btn">' +
                 '<input data-field="svc-cwd" data-gi="' + gi + '" data-si="' + si + '" value="' + esc(svc.cwd||'') + '" placeholder="\${workspaceFolder}" />' +
-                '<button class="secondary" data-action="browse-folder" data-gi="' + gi + '" data-si="' + si + '">Browse</button>' +
+                '<button type="button" class="secondary" data-action="browse-folder" data-gi="' + gi + '" data-si="' + si + '">Browse</button>' +
               '</div></div>' +
-            '<div style="margin-top:8px"><label>Command</label>' +
+            '<div class="field-block"><label>Command</label>' +
               '<input data-field="svc-command" data-gi="' + gi + '" data-si="' + si + '" value="' + esc(svc.command||'') + '" placeholder="npm run dev" />' +
               '<div class="suggestions">' + renderSuggestions(si, gi, svc.cwd) + '</div></div>' +
             renderRuntimeSection(gi, si, svc) +
@@ -566,7 +797,7 @@ function getWebviewHtml(webview: vscode.Webview): string {
         }
         return;
       }
-      if (t.closest('.group-header') && !t.dataset.action) {
+      if (t.closest('.group-header') && !t.dataset.action && !t.closest('[data-action]')) {
         const gi = +t.closest('.group-header').dataset.gi;
         if (expandedGroups.has(gi)) expandedGroups.delete(gi); else expandedGroups.add(gi);
         render();

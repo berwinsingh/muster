@@ -89,17 +89,20 @@ export function getExampleConfig(): WritableWorkspaceConfig {
       },
     ],
     monitoring: {
+      maxDays: 7,
       includeDiagnostics: true,
       patterns: [
         {
           id: 'error',
           severity: 'error',
+          category: 'runtime',
           regex: 'ERROR|Error:|Traceback|Exception',
           sources: ['terminal'],
         },
         {
           id: 'warning',
           severity: 'warning',
+          category: 'runtime',
           regex: 'WARN|Warning:',
           sources: ['terminal'],
         },

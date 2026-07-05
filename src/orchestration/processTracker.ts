@@ -9,12 +9,28 @@ export type TrackedService = {
   childProcess?: import('child_process').ChildProcess;
   status: ServiceStatus;
   outputBuffer: string[];
+  partialLine: string;
   startedAt?: number;
 };
 
 const MAX_OUTPUT_LINES = 500;
 
-export class ProcessTracker {
+type TerminalDataWriteEvent = {
+  terminal: vscode.Terminal;
+  data: string;
+};
+
+type WindowWithTerminalData = typeof vscode.window & {
+  onDidWriteTerminalData?: (
+    listener: (event: TerminalDataWriteEvent) => void
+  ) => vscode.Disposable;
+};
+
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\r/g, '');
+}
+
+export class ProcessTracker implements vscode.Disposable {
   private readonly services = new Map<string, TrackedService>();
   private readonly onDidChangeEmitter = new vscode.EventEmitter<void>();
   readonly onDidChange = this.onDidChangeEmitter.event;
@@ -26,12 +42,37 @@ export class ProcessTracker {
   }>();
   readonly onDidAppendOutput = this.onDidAppendOutputEmitter.event;
 
+  private readonly disposables: vscode.Disposable[] = [];
+
+  constructor() {
+    const windowApi = vscode.window as WindowWithTerminalData;
+    if (windowApi.onDidWriteTerminalData) {
+      this.disposables.push(
+        windowApi.onDidWriteTerminalData((event) => {
+          const tracked = this.findByTerminal(event.terminal);
+          if (tracked) {
+            this.appendOutput(tracked.groupId, tracked.serviceId, event.data);
+          }
+        })
+      );
+    }
+  }
+
   private key(groupId: string, serviceId: string): string {
     return `${groupId}:${serviceId}`;
   }
 
   getService(groupId: string, serviceId: string): TrackedService | undefined {
     return this.services.get(this.key(groupId, serviceId));
+  }
+
+  findByTerminal(terminal: vscode.Terminal): TrackedService | undefined {
+    for (const tracked of this.services.values()) {
+      if (tracked.terminal === terminal) {
+        return tracked;
+      }
+    }
+    return undefined;
   }
 
   setStatus(groupId: string, serviceId: string, status: ServiceStatus): void {
@@ -44,6 +85,7 @@ export class ProcessTracker {
         serviceId,
         status,
         outputBuffer: [],
+        partialLine: '',
       });
     }
     this.onDidChangeEmitter.fire();
@@ -61,6 +103,7 @@ export class ProcessTracker {
       terminal,
       status,
       outputBuffer: [],
+      partialLine: '',
       startedAt: Date.now(),
     };
     this.services.set(this.key(groupId, serviceId), tracked);
@@ -82,6 +125,7 @@ export class ProcessTracker {
       childProcess,
       status,
       outputBuffer: [],
+      partialLine: '',
       startedAt: Date.now(),
     };
     this.services.set(this.key(groupId, serviceId), tracked);
@@ -98,13 +142,21 @@ export class ProcessTracker {
     if (!tracked) {
       return;
     }
-    const lines = data.split(/\r?\n/);
-    for (const line of lines) {
-      if (line.length > 0) {
-        tracked.outputBuffer.push(line);
-        this.onDidAppendOutputEmitter.fire({ groupId, serviceId, line });
+
+    const cleaned = stripAnsi(data);
+    tracked.partialLine += cleaned;
+    const parts = tracked.partialLine.split('\n');
+    tracked.partialLine = parts.pop() ?? '';
+
+    for (const rawLine of parts) {
+      const line = rawLine.trimEnd();
+      if (line.length === 0) {
+        continue;
       }
+      tracked.outputBuffer.push(line);
+      this.onDidAppendOutputEmitter.fire({ groupId, serviceId, line });
     }
+
     if (tracked.outputBuffer.length > MAX_OUTPUT_LINES) {
       tracked.outputBuffer.splice(0, tracked.outputBuffer.length - MAX_OUTPUT_LINES);
     }
@@ -191,5 +243,13 @@ export class ProcessTracker {
       const s = this.services.get(this.key(groupId, id));
       return s?.status === 'running' || s?.status === 'starting';
     });
+  }
+
+  dispose(): void {
+    for (const disposable of this.disposables) {
+      disposable.dispose();
+    }
+    this.onDidChangeEmitter.dispose();
+    this.onDidAppendOutputEmitter.dispose();
   }
 }

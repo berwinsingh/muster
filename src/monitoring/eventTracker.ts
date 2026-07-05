@@ -19,6 +19,7 @@ export type DevStackEvent = {
   message: string;
   source: 'terminal' | 'diagnostics';
   patternId?: string;
+  category?: string;
   location?: {
     uri: string;
     range: { start: { line: number; character: number }; end: { line: number; character: number } };
@@ -26,6 +27,12 @@ export type DevStackEvent = {
 };
 
 const MAX_EVENTS = 500;
+
+const SEVERITY_RANK: Record<DevStackEvent['severity'], number> = {
+  error: 3,
+  warning: 2,
+  info: 1,
+};
 
 export class EventTracker implements vscode.Disposable {
   private readonly events: DevStackEvent[] = [];
@@ -47,6 +54,7 @@ export class EventTracker implements vscode.Disposable {
     );
 
     this.refreshMonitoringConfig();
+    this.processDiagnostics();
   }
 
   refreshMonitoringConfig(): void {
@@ -94,23 +102,41 @@ export class EventTracker implements vscode.Disposable {
       resolved.patterns.filter((p) => p.sources.includes('terminal'))
     );
 
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    let bestMatch: (typeof patterns)[number] | undefined;
     for (const pattern of patterns) {
-      if (pattern.compiled.test(line)) {
-        const meta = this.getServiceMeta(groupId, serviceId);
-        this.addEvent({
-          timestamp: Date.now(),
-          groupId,
-          serviceId,
-          groupLabel: meta.groupLabel,
-          serviceName: meta.serviceName,
-          severity: pattern.severity,
-          message: line.trim(),
-          source: 'terminal',
-          patternId: pattern.id,
-        });
-        break;
+      if (!pattern.compiled.test(trimmed)) {
+        continue;
+      }
+      if (
+        !bestMatch ||
+        SEVERITY_RANK[pattern.severity] > SEVERITY_RANK[bestMatch.severity]
+      ) {
+        bestMatch = pattern;
       }
     }
+
+    if (!bestMatch) {
+      return;
+    }
+
+    const meta = this.getServiceMeta(groupId, serviceId);
+    this.addEvent({
+      timestamp: Date.now(),
+      groupId,
+      serviceId,
+      groupLabel: meta.groupLabel,
+      serviceName: meta.serviceName,
+      severity: bestMatch.severity,
+      message: trimmed,
+      source: 'terminal',
+      patternId: bestMatch.id,
+      category: bestMatch.category,
+    });
   }
 
   private processDiagnostics(): void {
@@ -169,20 +195,30 @@ export class EventTracker implements vscode.Disposable {
     return [...this.events];
   }
 
+  hasAnyEvents(): boolean {
+    return this.events.length > 0;
+  }
+
   getFilteredEvents(filters: {
-    dateRange?: 'today' | 'week' | 'all';
+    dateRange?: 'today' | '3d' | 'maxDays' | 'all';
     severity?: 'error' | 'warning' | 'info' | 'all';
     groupId?: string;
     serviceId?: string;
+    category?: string;
   }): DevStackEvent[] {
     const now = Date.now();
     const dayMs = 24 * 60 * 60 * 1000;
+    const maxDays = resolveMonitoringConfig(this.monitoring).maxDays;
 
     return this.events.filter((event) => {
-      if (filters.dateRange === 'today' && now - event.timestamp > dayMs) {
+      const age = now - event.timestamp;
+      if (filters.dateRange === 'today' && age > dayMs) {
         return false;
       }
-      if (filters.dateRange === 'week' && now - event.timestamp > 7 * dayMs) {
+      if (filters.dateRange === '3d' && age > 3 * dayMs) {
+        return false;
+      }
+      if (filters.dateRange === 'maxDays' && age > maxDays * dayMs) {
         return false;
       }
       if (filters.severity && filters.severity !== 'all' && event.severity !== filters.severity) {
@@ -194,8 +230,35 @@ export class EventTracker implements vscode.Disposable {
       if (filters.serviceId && filters.serviceId !== 'all' && event.serviceId !== filters.serviceId) {
         return false;
       }
+      if (filters.category && filters.category !== 'all') {
+        if (!event.category || event.category !== filters.category) {
+          return false;
+        }
+      }
       return true;
     });
+  }
+
+  getMonitoringMeta(): { maxDays: number; categories: string[] } {
+    const resolved = resolveMonitoringConfig(this.monitoring);
+    const categories = [
+      ...new Set(
+        resolved.patterns
+          .map((p) => p.category)
+          .filter((c): c is string => Boolean(c))
+      ),
+    ].sort();
+    return { maxDays: resolved.maxDays, categories };
+  }
+
+  getSeverityCounts(
+    filters: Omit<Parameters<EventTracker['getFilteredEvents']>[0], 'severity'>
+  ): Record<'error' | 'warning' | 'info', number> {
+    const counts = { error: 0, warning: 0, info: 0 };
+    for (const event of this.getFilteredEvents({ ...filters, severity: 'all' })) {
+      counts[event.severity] += 1;
+    }
+    return counts;
   }
 
   getServiceEventCount(

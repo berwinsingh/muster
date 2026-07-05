@@ -129,6 +129,10 @@
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+        "category": {
+          "type": "string",
+          "description": "Optional category tag for filtering events in the Events panel"
+        },
         "regex": { "type": "string", "minLength": 1 },
         "sources": {
           "type": "array",
@@ -141,6 +145,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "maxDays": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 7,
+          "description": "Maximum number of days shown in the Events panel date filter"
+        },
         "patterns": {
           "type": "array",
           "items": { "$ref": "#/definitions/monitoringPattern" },

@@ -4,13 +4,24 @@ export const DEFAULT_MONITORING_PATTERNS: MonitoringPattern[] = [
   {
     id: 'error',
     severity: 'error',
-    regex: 'ERROR|Error:|Traceback|Exception|FATAL',
+    category: 'runtime',
+    regex:
+      'ERROR|Error:|Traceback|Exception|OperationalError|ECONNREFUSED|connection refused|FATAL|panic:',
     sources: ['terminal'],
   },
   {
     id: 'warning',
     severity: 'warning',
-    regex: 'WARN|Warning:',
+    category: 'runtime',
+    regex: 'WARN|Warning:|warning:|deprecated',
+    sources: ['terminal'],
+  },
+  {
+    id: 'info',
+    severity: 'info',
+    category: 'runtime',
+    regex:
+      '\\[info\\]|\\[INFO\\]|INFO:|started|listening on|ready|initialized|Server running',
     sources: ['terminal'],
   },
 ];
@@ -22,6 +33,7 @@ export function resolveMonitoringConfig(
     monitoring?.patterns?.length ? monitoring.patterns : DEFAULT_MONITORING_PATTERNS;
 
   return {
+    maxDays: monitoring?.maxDays ?? 7,
     patterns,
     includeDiagnostics: monitoring?.includeDiagnostics ?? true,
   };

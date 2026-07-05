@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
 
 export function registerMcpProvider(context: vscode.ExtensionContext): void {
+  const lm = (vscode as typeof vscode & { lm?: typeof vscode.lm }).lm;
+  if (!lm?.registerMcpServerDefinitionProvider) {
+    return;
+  }
+
   const provider: vscode.McpServerDefinitionProvider = {
     provideMcpServerDefinitions: () => {
       const serverPath = context.asAbsolutePath('dist/mcp/server.js');
@@ -13,7 +18,5 @@ export function registerMcpProvider(context: vscode.ExtensionContext): void {
     },
   };
 
-  context.subscriptions.push(
-    vscode.lm.registerMcpServerDefinitionProvider('devstack.mcp', provider)
-  );
+  context.subscriptions.push(lm.registerMcpServerDefinitionProvider('devstack.mcp', provider));
 }
