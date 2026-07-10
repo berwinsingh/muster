@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
+import { buildServiceEnv } from '../../config/env';
 import { GroupConfig, ServiceConfig } from '../../config/schema';
 import { buildServiceCommand } from '../shell';
 import { ProcessTracker } from '../processTracker';
-import { launchDedicatedService } from './dedicated';
+import { executeTerminalCommand, launchDedicatedService } from './dedicated';
 
 /**
  * Split layout: creates terminals sequentially, attempting to place them
@@ -22,24 +23,24 @@ export async function launchSplitGroup(
     vscode.ViewColumn.Five,
   ];
 
-  for (let i = 0; i < group.services.length; i++) {
-    const service = group.services[i];
-    const column = columns[i % columns.length];
+  for (let index = 0; index < group.services.length; index++) {
+    const service = group.services[index];
+    const column = columns[index % columns.length];
 
     tracker.setStatus(group.id, service.id, 'starting');
 
     const terminal = vscode.window.createTerminal({
       name: `DevStack: ${service.name}`,
       cwd: service.cwd ?? workspaceFolder?.uri.fsPath,
+      env: buildServiceEnv(service),
       location: { viewColumn: column, preserveFocus: false },
     });
 
     tracker.trackTerminal(group.id, service.id, terminal, 'starting');
-    terminal.show(i === 0);
+    terminal.show(index === 0);
 
     try {
-      const command = buildServiceCommand(service);
-      terminal.sendText(command, true);
+      await executeTerminalCommand(terminal, buildServiceCommand(service));
       tracker.setStatus(group.id, service.id, 'running');
     } catch {
       await runService(service);
