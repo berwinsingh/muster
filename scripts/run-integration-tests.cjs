@@ -8,7 +8,7 @@ async function main() {
     'src',
     'test',
     'integration',
-    'index.cjs'
+    'index.js'
   );
   const workspacePath = path.resolve(
     extensionDevelopmentPath,
@@ -21,7 +21,13 @@ async function main() {
   await runTests({
     extensionDevelopmentPath,
     extensionTestsPath,
-    launchArgs: [workspacePath, '--disable-extensions', '--skip-welcome', '--skip-release-notes'],
+    launchArgs: [
+      workspacePath,
+      '--disable-extensions',
+      '--disable-workspace-trust',
+      '--skip-welcome',
+      '--skip-release-notes',
+    ],
   });
 }
 
