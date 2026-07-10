@@ -15,35 +15,6 @@ export type TrackedService = {
 
 const MAX_OUTPUT_LINES = 500;
 
-type TerminalDataWriteEvent = {
-  terminal: vscode.Terminal;
-  data: string;
-};
-
-type TerminalShellExecutionStartEvent = {
-  terminal: vscode.Terminal;
-  execution: {
-    read(): AsyncIterable<string>;
-  };
-};
-
-type TerminalShellExecutionEndEvent = {
-  terminal: vscode.Terminal;
-  exitCode?: number;
-};
-
-type WindowWithTerminalEvents = typeof vscode.window & {
-  onDidWriteTerminalData?: (
-    listener: (event: TerminalDataWriteEvent) => void
-  ) => vscode.Disposable;
-  onDidStartTerminalShellExecution?: (
-    listener: (event: TerminalShellExecutionStartEvent) => void
-  ) => vscode.Disposable;
-  onDidEndTerminalShellExecution?: (
-    listener: (event: TerminalShellExecutionEndEvent) => void
-  ) => vscode.Disposable;
-};
-
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\r/g, '');
 }
@@ -63,41 +34,25 @@ export class ProcessTracker implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor() {
-    const windowApi = vscode.window as WindowWithTerminalEvents;
-
-    if (typeof windowApi.onDidWriteTerminalData === 'function') {
-      this.disposables.push(
-        windowApi.onDidWriteTerminalData((event) => {
-          const tracked = this.findByTerminal(event.terminal);
-          if (tracked) {
-            this.appendOutput(tracked.groupId, tracked.serviceId, event.data);
-          }
-        })
-      );
-    } else if (typeof windowApi.onDidStartTerminalShellExecution === 'function') {
-      this.disposables.push(
-        windowApi.onDidStartTerminalShellExecution((event) => {
-          void this.consumeShellExecution(event);
-        })
-      );
-    }
-
-    if (typeof windowApi.onDidEndTerminalShellExecution === 'function') {
-      this.disposables.push(
-        windowApi.onDidEndTerminalShellExecution((event) => {
-          const tracked = this.findByTerminal(event.terminal);
-          if (!tracked) {
-            return;
-          }
-          this.flushPartialLine(tracked);
-          tracked.status = event.exitCode === undefined || event.exitCode === 0 ? 'stopped' : 'failed';
-          this.onDidChangeEmitter.fire();
-        })
-      );
-    }
+    this.disposables.push(
+      vscode.window.onDidStartTerminalShellExecution((event) => {
+        void this.consumeShellExecution(event);
+      }),
+      vscode.window.onDidEndTerminalShellExecution((event) => {
+        const tracked = this.findByTerminal(event.terminal);
+        if (!tracked) {
+          return;
+        }
+        this.flushPartialLine(tracked);
+        tracked.status = event.exitCode === undefined || event.exitCode === 0 ? 'stopped' : 'failed';
+        this.onDidChangeEmitter.fire();
+      })
+    );
   }
 
-  private async consumeShellExecution(event: TerminalShellExecutionStartEvent): Promise<void> {
+  private async consumeShellExecution(
+    event: vscode.TerminalShellExecutionStartEvent
+  ): Promise<void> {
     const tracked = this.findByTerminal(event.terminal);
     if (!tracked) {
       return;
