@@ -24,9 +24,11 @@ export type EventFilterOptions = {
   maxDays: number;
 };
 
-function startOfLocalDay(timestamp: number): number {
+function startOfLocalDay(timestamp: number, daysBack = 0): number {
   const date = new Date(timestamp);
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - daysBack);
+  return date.getTime();
 }
 
 function getEarliestTimestamp(
@@ -34,15 +36,13 @@ function getEarliestTimestamp(
   now: number,
   maxDays: number
 ): number | undefined {
-  const startToday = startOfLocalDay(now);
-
   switch (dateRange) {
     case 'today':
-      return startToday;
+      return startOfLocalDay(now);
     case '3d':
-      return startToday - 2 * 24 * 60 * 60 * 1000;
+      return startOfLocalDay(now, 2);
     case 'maxDays':
-      return startToday - Math.max(0, maxDays - 1) * 24 * 60 * 60 * 1000;
+      return startOfLocalDay(now, Math.max(0, maxDays - 1));
     case 'all':
     case undefined:
       return undefined;
