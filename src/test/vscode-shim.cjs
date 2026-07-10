@@ -2,6 +2,8 @@
 const Module = require('module');
 const originalRequire = Module.prototype.require;
 
+const disposable = () => ({ dispose: () => undefined });
+
 const vscodeMock = {
   Uri: {
     file: (fsPath) => ({ fsPath }),
@@ -27,15 +29,17 @@ const vscodeMock = {
     }),
   },
   window: {
-    createTreeView: () => ({ dispose: () => undefined }),
-    registerWebviewViewProvider: () => ({ dispose: () => undefined }),
+    createTreeView: () => disposable(),
+    registerWebviewViewProvider: () => disposable(),
+    onDidStartTerminalShellExecution: () => disposable(),
+    onDidEndTerminalShellExecution: () => disposable(),
   },
   languages: {
-    onDidChangeDiagnostics: () => ({ dispose: () => undefined }),
+    onDidChangeDiagnostics: () => disposable(),
     getDiagnostics: () => [],
   },
   commands: {
-    registerCommand: () => ({ dispose: () => undefined }),
+    registerCommand: () => disposable(),
     executeCommand: async () => undefined,
   },
   EventEmitter: class {
