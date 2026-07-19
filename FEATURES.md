@@ -16,8 +16,11 @@ Muster is a VS Code extension for orchestrating dev server groups — configure 
 | **Core** | Terminal layouts | `dedicated` (one terminal per service), `aggregated` (single terminal), or `split` (split panes) |
 | **Core** | Start order | `parallel` or `sequence` with per-service `dependsOn` and `delayMs` |
 | **Core** | Ready detection | Wait for `readyPattern` regex in terminal output or `healthUrl` HTTP check before proceeding |
-| **Runtime** | Python venv | Auto-detect `.venv` / `venv` / `env`; activate before command; browse or create venv from wizard |
-| **Runtime** | Node / nvm | Detect `.nvmrc` and `package.json` engines; prepend `nvm use` automatically |
+| **Core** | Stacked commands | `commands: [...]` list per service, chained with `&&` — no more cramming setup steps into one string |
+| **Core** | Ports | First-class `port` field: injected as `PORT` env var, `${port}` substitution in command/healthUrl, and a pre-launch warning when the port is already taken |
+| **Core** | Lifecycle hooks | Group `hooks.preRun` / `hooks.postStop` commands (VPN connect, `docker compose up`, migrations) — preRun failures abort the run |
+| **Runtime** | Python venv | Explicit `python.venv` activation; wizard auto-suggestion is opt-in via `muster.autoRuntimeDetection` |
+| **Runtime** | Node / nvm | Explicit `node.version` prepends `nvm use`; `.nvmrc`/engines auto-detection is opt-in via `muster.autoRuntimeDetection` (off by default) |
 | **Runtime** | Shell prepend | Custom `shell.prepend` commands run before the main command (venv, nvm, etc.) |
 | **Runtime** | Command suggestions | Scan `package.json`, `Makefile`, `pyproject.toml`, and `go.mod` for dev commands |
 | **Runtime** | Variable substitution | `${workspaceFolder}`, `${workspaceFolderBasename}`, and `${env:VAR}` in paths and commands |

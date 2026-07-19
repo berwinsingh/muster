@@ -59,6 +59,14 @@ export function formatAggregatedHandoff(groupId: string, label: string): string 
   return `${MUSTER_TAG} ${groupId} running aggregated in terminal ${DIM}"Muster: ${label}"${RESET}`;
 }
 
+export function formatHook(line: string): string {
+  return `${MUSTER_TAG} ${DIM}⚙ ${line}${RESET}`;
+}
+
+export function formatPortWarning(serviceId: string, port: number): string {
+  return `${MUSTER_TAG} ${RED}⚠ port ${port} is already in use — ${serviceId} may fail to bind${RESET}`;
+}
+
 export function formatStopping(groupId: string): string {
   return `${MUSTER_TAG} ⏹ stopping ${groupId}…`;
 }

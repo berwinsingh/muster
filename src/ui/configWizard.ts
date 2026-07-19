@@ -934,6 +934,17 @@ export async function openVisualConfigEditor(
 
   const sendInit = async (): Promise<void> => {
     const config = await readWritableWorkspaceConfig(folder);
+    // The form edits a single command field; represent stacked `commands`
+    // as their && join so a wizard round-trip stays semantically identical
+    // instead of dropping the list.
+    for (const group of config.groups) {
+      for (const service of group.services) {
+        if (!service.command && service.commands) {
+          service.command = service.commands.join(' && ');
+          delete service.commands;
+        }
+      }
+    }
     const suggestions = scanCommandSuggestions(folder);
     panel.webview.postMessage({ type: 'init', config, suggestions });
   };
@@ -1012,6 +1023,9 @@ export async function openVisualConfigEditor(
     if (msg.type === 'detectRuntime') {
       const serviceCwd = resolveServiceCwd(msg.cwd, folder);
       const partial = msg.service ?? {};
+      const autoDetect = vscode.workspace
+        .getConfiguration('muster')
+        .get<boolean>('autoRuntimeDetection', false);
       const suggestion = suggestPrependForService(
         {
           command: msg.command ?? '',
@@ -1021,19 +1035,24 @@ export async function openVisualConfigEditor(
         },
         serviceCwd
       );
-      const selectedVenv =
-        partial.python?.venv ??
-        (suggestion.venvs.includes('.venv') ? '.venv' : suggestion.venvs[0]);
-      const nodeVersion =
-        partial.node?.version ?? suggestion.nodeRuntime.nvmrc ?? suggestion.nodeRuntime.engines;
+      // Without opt-in, detection results are shown but never pre-selected:
+      // clearing the venv/Node fields must stick instead of being re-filled
+      // from .nvmrc / engines on every edit.
+      const selectedVenv = autoDetect
+        ? partial.python?.venv ??
+          (suggestion.venvs.includes('.venv') ? '.venv' : suggestion.venvs[0])
+        : partial.python?.venv;
+      const nodeVersion = autoDetect
+        ? partial.node?.version ?? suggestion.nodeRuntime.nvmrc ?? suggestion.nodeRuntime.engines
+        : partial.node?.version;
 
       panel.webview.postMessage({
         type: 'runtimeResult',
         requestId: msg.requestId,
-        venvs: suggestion.venvs,
-        nodeRuntime: suggestion.nodeRuntime,
-        prepend: suggestion.prepend,
-        warning: suggestion.warning,
+        venvs: autoDetect ? suggestion.venvs : [],
+        nodeRuntime: autoDetect ? suggestion.nodeRuntime : {},
+        prepend: autoDetect ? suggestion.prepend : partial.shell?.prepend ?? [],
+        warning: autoDetect ? suggestion.warning : undefined,
         selectedVenv,
         nodeVersion,
         needsPython:

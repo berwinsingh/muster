@@ -1,6 +1,7 @@
 import * as http from 'http';
 import * as vscode from 'vscode';
 import { loadMergedConfig, loadMergedConfigFromPaths } from '../config/loader';
+import { effectiveCommand } from '../config/schema';
 import { GroupRunner } from '../orchestration/groupRunner';
 import { ProcessTracker } from '../orchestration/processTracker';
 import { getUserProfilesPath, getWorkspaceConfigPath } from '../config/paths';
@@ -50,7 +51,12 @@ export function startIpcServer(
             label: g.label,
             layout: g.layout,
             order: g.order,
-            services: g.services.map((s) => ({ id: s.id, name: s.name, command: s.command })),
+            services: g.services.map((s) => ({
+              id: s.id,
+              name: s.name,
+              command: effectiveCommand(s),
+              port: s.port,
+            })),
           })),
           sources: config.sources,
         });

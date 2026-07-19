@@ -31,8 +31,14 @@ export function loadEnvFile(envFile: string): Record<string, string> {
 export function buildServiceEnv(service: {
   env?: Record<string, string>;
   envFile?: string;
+  port?: number;
 }): NodeJS.ProcessEnv {
   const base: Record<string, string | undefined> = { ...process.env };
+  // A declared port becomes the PORT env var, but explicit env config
+  // (env map or envFile) always wins over the convenience default.
+  if (service.port !== undefined) {
+    base.PORT = String(service.port);
+  }
   if (service.envFile) {
     Object.assign(base, loadEnvFile(service.envFile));
   }
