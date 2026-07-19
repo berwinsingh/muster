@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { getWorkspaceConfigPath } from './paths';
 
-/** Prefer the workspace folder that contains `.vscode/devstack.json`. */
-export function getDevStackWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
+/** Prefer the workspace folder that contains `.vscode/muster.json`. */
+export function getMusterWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders?.length) {
     return undefined;

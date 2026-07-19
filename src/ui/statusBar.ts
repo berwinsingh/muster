@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
 import { GroupRunner } from '../orchestration/groupRunner';
 
-export class DevStackStatusBar {
+export class MusterStatusBar {
   private readonly item: vscode.StatusBarItem;
   private lastGroupId: string | undefined;
 
   constructor(private readonly runner: GroupRunner) {
     this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    this.item.command = 'devstack.toggleGroup';
-    this.item.tooltip = 'DevStack: click to run/stop default group';
+    this.item.command = 'muster.toggleGroup';
+    this.item.tooltip = 'Muster: click to run/stop default group';
     this.update();
   }
 
@@ -18,11 +18,11 @@ export class DevStackStatusBar {
   }
 
   update(): void {
-    const config = vscode.workspace.getConfiguration('devstack');
+    const config = vscode.workspace.getConfiguration('muster');
     const defaultGroup = config.get<string>('defaultGroup') || this.lastGroupId;
 
     if (!defaultGroup) {
-      this.item.text = '$(server-process) DevStack';
+      this.item.text = '$(server-process) Muster';
       this.item.show();
       return;
     }
@@ -31,12 +31,12 @@ export class DevStackStatusBar {
     const running = this.runner.isGroupRunning(defaultGroup);
     const icon = running ? '$(debug-stop)' : '$(play)';
     const state = status?.state ?? 'idle';
-    this.item.text = `${icon} DevStack: ${defaultGroup} (${state})`;
+    this.item.text = `${icon} Muster: ${defaultGroup} (${state})`;
     this.item.show();
   }
 
   getActiveGroupId(): string | undefined {
-    const config = vscode.workspace.getConfiguration('devstack');
+    const config = vscode.workspace.getConfiguration('muster');
     return config.get<string>('defaultGroup') || this.lastGroupId;
   }
 
@@ -48,15 +48,15 @@ export class DevStackStatusBar {
 export function registerStatusBar(
   context: vscode.ExtensionContext,
   runner: GroupRunner
-): DevStackStatusBar {
-  const statusBar = new DevStackStatusBar(runner);
+): MusterStatusBar {
+  const statusBar = new MusterStatusBar(runner);
   context.subscriptions.push({ dispose: () => statusBar.dispose() });
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('devstack.toggleGroup', async () => {
+    vscode.commands.registerCommand('muster.toggleGroup', async () => {
       const groupId = statusBar.getActiveGroupId();
       if (!groupId) {
-        await vscode.commands.executeCommand('devstack.runGroup');
+        await vscode.commands.executeCommand('muster.runGroup');
         return;
       }
       if (runner.isGroupRunning(groupId)) {

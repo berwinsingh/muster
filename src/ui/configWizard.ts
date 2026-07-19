@@ -10,7 +10,7 @@ import {
 } from '../config/runtimeDetect';
 import { ServiceConfig } from '../config/schema';
 import { WritableWorkspaceConfig, getExampleConfig, readWritableWorkspaceConfig, saveWorkspaceConfig } from '../config/writer';
-import { getDevStackWorkspaceFolder } from '../config/workspaceFolder';
+import { getMusterWorkspaceFolder } from '../config/workspaceFolder';
 import { openConfigEditor } from './configEditor';
 
 type WebviewMessage =
@@ -32,7 +32,7 @@ function getWebviewHtml(webview: vscode.Webview): string {
     "default-src 'none'",
     `style-src ${webview.cspSource} 'unsafe-inline' https://cdn.jsdelivr.net`,
     `font-src ${webview.cspSource} https://cdn.jsdelivr.net`,
-    `script-src 'nonce-devstack-wizard'`,
+    `script-src 'nonce-muster-wizard'`,
   ].join('; ');
 
   return `<!DOCTYPE html>
@@ -41,7 +41,7 @@ function getWebviewHtml(webview: vscode.Webview): string {
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="${csp}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DevStack Config</title>
+  <title>Muster Config</title>
   <link rel="stylesheet" href="${codiconsUri}" />
   <style>
     * { box-sizing: border-box; }
@@ -365,7 +365,7 @@ function getWebviewHtml(webview: vscode.Webview): string {
 </head>
 <body>
   <header class="page-header">
-    <h1>DevStack Configuration</h1>
+    <h1>Muster Configuration</h1>
     <p class="subtitle">Configure server groups and services for your workspace</p>
   </header>
   <div id="status" class="status"></div>
@@ -384,10 +384,10 @@ function getWebviewHtml(webview: vscode.Webview): string {
     <button id="save"><span class="codicon codicon-save"></span> Save</button>
     <button class="secondary" id="saveAndRun" style="display:none"><span class="codicon codicon-play"></span> Save &amp; Run</button>
     <span class="footer-spacer"></span>
-    <span class="footer-hint">Saved to .vscode/devstack.json</span>
+    <span class="footer-hint">Saved to .vscode/muster.json</span>
     <button type="button" class="footer-link" id="openJson">Advanced JSON</button>
   </footer>
-  <script nonce="devstack-wizard">
+  <script nonce="muster-wizard">
     const vscode = acquireVsCodeApi();
     let state = { version: '1.0.0', groups: [], monitoring: undefined };
     let suggestions = [];
@@ -910,9 +910,9 @@ export async function openVisualConfigEditor(
   context: vscode.ExtensionContext,
   onSaved?: () => void
 ): Promise<void> {
-  const folder = getDevStackWorkspaceFolder();
+  const folder = getMusterWorkspaceFolder();
   if (!folder) {
-    vscode.window.showWarningMessage('Open a workspace folder to configure DevStack.');
+    vscode.window.showWarningMessage('Open a workspace folder to configure Muster.');
     return;
   }
 
@@ -922,8 +922,8 @@ export async function openVisualConfigEditor(
   }
 
   const panel = vscode.window.createWebviewPanel(
-    'devstackConfigWizard',
-    'DevStack Configuration',
+    'musterConfigWizard',
+    'Muster Configuration',
     vscode.ViewColumn.One,
     { enableScripts: true, retainContextWhenHidden: true }
   );
@@ -1046,7 +1046,7 @@ export async function openVisualConfigEditor(
     if (msg.type === 'createVenv') {
       const serviceCwd = resolveServiceCwd(msg.cwd, folder);
       const terminal = vscode.window.createTerminal({
-        name: 'DevStack: Create venv',
+        name: 'Muster: Create venv',
         cwd: serviceCwd,
       });
       terminal.show();
@@ -1081,12 +1081,12 @@ export async function openVisualConfigEditor(
         if (runGroupId) {
           const savedGroup = config.groups.find((g) => g.id === runGroupId) ?? config.groups[0];
           if (savedGroup) {
-            await vscode.commands.executeCommand('devstack.runGroup', savedGroup.id);
+            await vscode.commands.executeCommand('muster.runGroup', savedGroup.id);
           }
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        void vscode.window.showErrorMessage(`DevStack save failed: ${message}`);
+        void vscode.window.showErrorMessage(`Muster save failed: ${message}`);
         panel.webview.postMessage({
           type: 'error',
           message,
@@ -1144,7 +1144,7 @@ export async function importExampleConfig(
   context: vscode.ExtensionContext,
   onSaved?: () => void
 ): Promise<void> {
-  const folder = getDevStackWorkspaceFolder();
+  const folder = getMusterWorkspaceFolder();
   if (!folder) {
     vscode.window.showWarningMessage('Open a workspace folder first.');
     return;
@@ -1153,7 +1153,7 @@ export async function importExampleConfig(
   const existing = await readWritableWorkspaceConfig(folder);
   if (existing.groups.length > 0) {
     const choice = await vscode.window.showWarningMessage(
-      'This will replace your current DevStack groups. Continue?',
+      'This will replace your current Muster groups. Continue?',
       'Replace',
       'Cancel'
     );
@@ -1163,7 +1163,7 @@ export async function importExampleConfig(
   }
 
   await saveWorkspaceConfig(folder, getExampleConfig());
-  vscode.window.showInformationMessage('DevStack example configuration imported.');
+  vscode.window.showInformationMessage('Muster example configuration imported.');
   onSaved?.();
   await openVisualConfigEditor(context, onSaved);
 }

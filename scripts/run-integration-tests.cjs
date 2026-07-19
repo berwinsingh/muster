@@ -32,6 +32,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('DevStack integration tests failed:', error);
+  console.error('Muster integration tests failed:', error);
   process.exitCode = 1;
 });

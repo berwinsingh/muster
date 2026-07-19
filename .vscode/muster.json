@@ -1,5 +1,5 @@
 {
-  "$schema": "../schemas/devstack.schema.json",
+  "$schema": "../schemas/muster.schema.json",
   "version": "1.0.0",
   "groups": [
     {

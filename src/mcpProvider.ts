@@ -10,13 +10,13 @@ export function registerMcpProvider(context: vscode.ExtensionContext): void {
     provideMcpServerDefinitions: () => {
       const serverPath = context.asAbsolutePath('dist/mcp/server.js');
       return [
-        new vscode.McpStdioServerDefinition('devstack', process.execPath, [serverPath], {
-          DEVSTACK_IPC_PORT: process.env.DEVSTACK_IPC_PORT ?? '',
-          DEVSTACK_WORKSPACE: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '',
+        new vscode.McpStdioServerDefinition('muster', process.execPath, [serverPath], {
+          MUSTER_IPC_PORT: process.env.MUSTER_IPC_PORT ?? '',
+          MUSTER_WORKSPACE: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '',
         }),
       ];
     },
   };
 
-  context.subscriptions.push(lm.registerMcpServerDefinitionProvider('devstack.mcp', provider));
+  context.subscriptions.push(lm.registerMcpServerDefinitionProvider('muster.mcp', provider));
 }

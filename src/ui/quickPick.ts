@@ -10,23 +10,23 @@ export async function pickGroup(
   try {
     config = loadMergedConfig(folder);
   } catch (err) {
-    vscode.window.showErrorMessage(`DevStack config error: ${err}`);
+    vscode.window.showErrorMessage(`Muster config error: ${err}`);
     return undefined;
   }
 
   if (config.groups.length === 0) {
     const choice = await vscode.window.showInformationMessage(
-      'No DevStack groups configured yet.',
+      'No Muster groups configured yet.',
       'Create Group',
       'Import Example',
       'Open Visual Editor'
     );
     if (choice === 'Create Group') {
-      await vscode.commands.executeCommand('devstack.createGroup');
+      await vscode.commands.executeCommand('muster.createGroup');
     } else if (choice === 'Import Example') {
-      await vscode.commands.executeCommand('devstack.importExample');
+      await vscode.commands.executeCommand('muster.importExample');
     } else if (choice === 'Open Visual Editor') {
-      await vscode.commands.executeCommand('devstack.openVisualEditor');
+      await vscode.commands.executeCommand('muster.openVisualEditor');
     }
     return undefined;
   }

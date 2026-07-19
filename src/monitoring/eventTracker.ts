@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { loadMergedConfig } from '../config/loader';
 import { MonitoringConfig } from '../config/schema';
-import { getDevStackWorkspaceFolder } from '../config/workspaceFolder';
+import { getMusterWorkspaceFolder } from '../config/workspaceFolder';
 import { ProcessTracker } from '../orchestration/processTracker';
 import {
   countEventsBySeverity,
@@ -17,7 +17,7 @@ import {
   resolveMonitoringConfig,
 } from './patterns';
 
-export type DevStackEvent = {
+export type MusterEvent = {
   id: string;
   timestamp: number;
   groupId: string;
@@ -54,7 +54,7 @@ function isPathInside(candidate: string, parent: string): boolean {
 }
 
 export class EventTracker implements vscode.Disposable {
-  private readonly events: DevStackEvent[] = [];
+  private readonly events: MusterEvent[] = [];
   private readonly onDidChangeEmitter = new vscode.EventEmitter<void>();
   readonly onDidChange = this.onDidChangeEmitter.event;
 
@@ -76,7 +76,7 @@ export class EventTracker implements vscode.Disposable {
         try {
           this.processDiagnostics();
         } catch (err) {
-          console.warn('[DevStack] Diagnostics scan skipped:', err);
+          console.warn('[Muster] Diagnostics scan skipped:', err);
         }
       })
     );
@@ -85,13 +85,13 @@ export class EventTracker implements vscode.Disposable {
     try {
       this.processDiagnostics();
     } catch (err) {
-      console.warn('[DevStack] Initial diagnostics scan skipped:', err);
+      console.warn('[Muster] Initial diagnostics scan skipped:', err);
     }
   }
 
   refreshMonitoringConfig(): void {
     try {
-      const config = loadMergedConfig(getDevStackWorkspaceFolder());
+      const config = loadMergedConfig(getMusterWorkspaceFolder());
       this.monitoring = config.monitoring;
     } catch {
       this.monitoring = undefined;
@@ -114,7 +114,7 @@ export class EventTracker implements vscode.Disposable {
     serviceId: string
   ): { groupLabel: string; serviceName: string } {
     try {
-      const config = loadMergedConfig(getDevStackWorkspaceFolder());
+      const config = loadMergedConfig(getMusterWorkspaceFolder());
       const group = config.groups.find((candidate) => candidate.id === groupId);
       const service = group?.services.find((candidate) => candidate.id === serviceId);
       return {
@@ -126,7 +126,7 @@ export class EventTracker implements vscode.Disposable {
     }
   }
 
-  private addEvent(event: Omit<DevStackEvent, 'id'>, notify = true): void {
+  private addEvent(event: Omit<MusterEvent, 'id'>, notify = true): void {
     this.events.unshift({ ...event, id: this.nextId() });
     if (this.events.length > MAX_EVENTS) {
       this.events.length = MAX_EVENTS;
@@ -160,7 +160,7 @@ export class EventTracker implements vscode.Disposable {
   }
 
   private getConfiguredServices(): ServiceMeta[] {
-    const folder = getDevStackWorkspaceFolder();
+    const folder = getMusterWorkspaceFolder();
     if (!folder) {
       return [];
     }
@@ -205,7 +205,7 @@ export class EventTracker implements vscode.Disposable {
       return;
     }
 
-    const diagnosticsEvents: Array<Omit<DevStackEvent, 'id'>> = [];
+    const diagnosticsEvents: Array<Omit<MusterEvent, 'id'>> = [];
     for (const [uri, diagnostics] of vscode.languages.getDiagnostics()) {
       const service = this.findServiceForDiagnostic(uri, services);
       if (!service) {
@@ -247,7 +247,7 @@ export class EventTracker implements vscode.Disposable {
     this.onDidChangeEmitter.fire();
   }
 
-  getEvents(): DevStackEvent[] {
+  getEvents(): MusterEvent[] {
     return [...this.events];
   }
 
@@ -255,7 +255,7 @@ export class EventTracker implements vscode.Disposable {
     return this.events.length > 0;
   }
 
-  getFilteredEvents(filters: EventFilters): DevStackEvent[] {
+  getFilteredEvents(filters: EventFilters): MusterEvent[] {
     return filterEvents(this.events, filters, {
       maxDays: resolveMonitoringConfig(this.monitoring).maxDays,
     });
@@ -315,7 +315,7 @@ export class EventTracker implements vscode.Disposable {
   }
 }
 
-export async function revealEvent(event: DevStackEvent, tracker: ProcessTracker): Promise<void> {
+export async function revealEvent(event: MusterEvent, tracker: ProcessTracker): Promise<void> {
   if (event.source === 'diagnostics' && event.location) {
     const uri = vscode.Uri.file(event.location.uri);
     const document = await vscode.workspace.openTextDocument(uri);

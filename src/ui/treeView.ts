@@ -1,17 +1,17 @@
 import * as vscode from 'vscode';
 import { loadMergedConfig } from '../config/loader';
-import { getDevStackWorkspaceFolder, hasWorkspaceConfigFile } from '../config/workspaceFolder';
+import { getMusterWorkspaceFolder, hasWorkspaceConfigFile } from '../config/workspaceFolder';
 import { GroupConfig, ServiceStatus } from '../config/schema';
 import { EventTracker } from '../monitoring/eventTracker';
 import { GroupRunner } from '../orchestration/groupRunner';
 import { ProcessTracker } from '../orchestration/processTracker';
 
 /** Must match package.json contributes.views id exactly. */
-export const TREE_VIEW_ID = 'devstack.groups';
+export const TREE_VIEW_ID = 'muster.groups';
 
 type TreeItemContext = 'group' | 'service' | 'welcome' | 'error';
 
-export class DevStackTreeItem extends vscode.TreeItem {
+export class MusterTreeItem extends vscode.TreeItem {
   constructor(
     public readonly nodeId: string,
     public readonly nodeType: TreeItemContext,
@@ -58,7 +58,7 @@ function statusIcon(status: ServiceStatus): vscode.ThemeIcon {
   }
 }
 
-export class DevStackTreeProvider implements vscode.TreeDataProvider<DevStackTreeItem> {
+export class MusterTreeProvider implements vscode.TreeDataProvider<MusterTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
@@ -75,29 +75,29 @@ export class DevStackTreeProvider implements vscode.TreeDataProvider<DevStackTre
     this.onDidChangeTreeDataEmitter.fire();
   }
 
-  getTreeItem(element: DevStackTreeItem): vscode.TreeItem {
+  getTreeItem(element: MusterTreeItem): vscode.TreeItem {
     return element;
   }
 
-  getChildren(element?: DevStackTreeItem): DevStackTreeItem[] {
-    const folder = getDevStackWorkspaceFolder();
+  getChildren(element?: MusterTreeItem): MusterTreeItem[] {
+    const folder = getMusterWorkspaceFolder();
     let config;
     try {
       config = loadMergedConfig(folder);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Invalid DevStack config — open Visual Editor to fix';
-      const item = new DevStackTreeItem(
+        err instanceof Error ? err.message : 'Invalid Muster config — open Visual Editor to fix';
+      const item = new MusterTreeItem(
         'error',
         'error',
         '',
-        'Invalid DevStack config — click to fix',
+        'Invalid Muster config — click to fix',
         vscode.TreeItemCollapsibleState.None,
         undefined,
         message
       );
       item.command = {
-        command: 'devstack.openVisualEditor',
+        command: 'muster.openVisualEditor',
         title: 'Open Visual Editor',
       };
       return [item];
@@ -106,17 +106,17 @@ export class DevStackTreeProvider implements vscode.TreeDataProvider<DevStackTre
     if (!element) {
       if (config.groups.length === 0) {
         if (hasWorkspaceConfigFile(folder)) {
-          const item = new DevStackTreeItem(
+          const item = new MusterTreeItem(
             'error',
             'error',
             '',
-            'DevStack config has no groups — click to configure',
+            'Muster config has no groups — click to configure',
             vscode.TreeItemCollapsibleState.None,
             undefined,
             'Open the visual editor to add server groups.'
           );
           item.command = {
-            command: 'devstack.openVisualEditor',
+            command: 'muster.openVisualEditor',
             title: 'Open Visual Editor',
           };
           return [item];
@@ -126,7 +126,7 @@ export class DevStackTreeProvider implements vscode.TreeDataProvider<DevStackTre
       return config.groups.map((group) => {
         const status = this.runner.getGroupStatus(group.id);
         const suffix = status ? ` (${status.state})` : '';
-        return new DevStackTreeItem(
+        return new MusterTreeItem(
           group.id,
           'group',
           group.id,
@@ -155,7 +155,7 @@ export class DevStackTreeProvider implements vscode.TreeDataProvider<DevStackTre
           description = `${status} · ${warningCount} warn`;
         }
 
-        const item = new DevStackTreeItem(
+        const item = new MusterTreeItem(
           `${element.groupId}:${svc.id}`,
           'service',
           element.groupId,
@@ -185,8 +185,8 @@ export function registerTreeView(
   runner: GroupRunner,
   tracker: ProcessTracker,
   eventTracker?: EventTracker
-): DevStackTreeProvider {
-  const provider = new DevStackTreeProvider(runner, tracker, eventTracker);
+): MusterTreeProvider {
+  const provider = new MusterTreeProvider(runner, tracker, eventTracker);
   const treeView = vscode.window.createTreeView(TREE_VIEW_ID, {
     treeDataProvider: provider,
     showCollapseAll: true,
@@ -195,15 +195,15 @@ export function registerTreeView(
   return provider;
 }
 
-export function getGroupFromTreeItem(item: DevStackTreeItem): GroupConfig | undefined {
-  const folder = getDevStackWorkspaceFolder();
+export function getGroupFromTreeItem(item: MusterTreeItem): GroupConfig | undefined {
+  const folder = getMusterWorkspaceFolder();
   const config = loadMergedConfig(folder);
   return config.groups.find((g) => g.id === item.groupId);
 }
 
-export function devStackHasGroups(): boolean {
+export function musterHasGroups(): boolean {
   try {
-    const folder = getDevStackWorkspaceFolder();
+    const folder = getMusterWorkspaceFolder();
     if (!folder) {
       return false;
     }

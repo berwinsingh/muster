@@ -72,8 +72,8 @@ export function startIpcServer(
         jsonResponse(res, 200, {
           userProfilesPath: getUserProfilesPath(),
           workspaceConfigPath: workspaceRoot ? getWorkspaceConfigPath(workspaceRoot) : null,
-          schemaPath: 'schemas/devstack.schema.json',
-          ipcPort: process.env.DEVSTACK_IPC_PORT,
+          schemaPath: 'schemas/muster.schema.json',
+          ipcPort: process.env.MUSTER_IPC_PORT,
         });
         return;
       }
@@ -151,13 +151,13 @@ export function startIpcServer(
   const addr = server.address();
   const port = typeof addr === 'object' && addr ? addr.port : 0;
 
-  process.env.DEVSTACK_IPC_PORT = String(port);
+  process.env.MUSTER_IPC_PORT = String(port);
 
   return {
     port,
     dispose: () => {
       server.close();
-      delete process.env.DEVSTACK_IPC_PORT;
+      delete process.env.MUSTER_IPC_PORT;
     },
   };
 }

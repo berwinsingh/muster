@@ -18,23 +18,23 @@ describe('sidebar contributions', () => {
   const packageJson = JSON.parse(
     readFileSync(join(process.cwd(), 'package.json'), 'utf-8').replace(/^\uFEFF/, '')
   ) as PackageJson;
-  const devstackViews = packageJson.contributes?.views?.devstack ?? [];
+  const musterViews = packageJson.contributes?.views?.muster ?? [];
 
   it('tree view id matches package.json', () => {
-    const declared = devstackViews.find((view) => view.type !== 'webview')?.id;
+    const declared = musterViews.find((view) => view.type !== 'webview')?.id;
     assert.equal(TREE_VIEW_ID, declared);
-    assert.equal(TREE_VIEW_ID, 'devstack.groups');
+    assert.equal(TREE_VIEW_ID, 'muster.groups');
   });
 
   it('events webview id matches package.json', () => {
-    const declared = devstackViews.find((view) => view.type === 'webview')?.id;
+    const declared = musterViews.find((view) => view.type === 'webview')?.id;
     assert.equal(ISSUES_VIEW_ID, declared);
-    assert.equal(ISSUES_VIEW_ID, 'devstack.issues');
+    assert.equal(ISSUES_VIEW_ID, 'muster.issues');
   });
 
   it('uses a packaged SVG file for the Activity Bar container', () => {
     const container = packageJson.contributes?.viewsContainers?.activitybar?.find(
-      (candidate) => candidate.id === 'devstack'
+      (candidate) => candidate.id === 'muster'
     );
     assert.ok(container?.icon);
     assert.equal(container.icon.startsWith('$('), false);

@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://devstack.dev/schemas/devstack.schema.json",
-  "title": "DevStack Configuration",
-  "description": "DevStack server group configuration for VS Code workspaces",
+  "$id": "https://muster.dev/schemas/muster.schema.json",
+  "title": "Muster Configuration",
+  "description": "Muster server group configuration for VS Code workspaces",
   "type": "object",
   "additionalProperties": false,
   "properties": {

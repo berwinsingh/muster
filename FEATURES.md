@@ -1,8 +1,8 @@
-# DevStack Features
+# Muster Features
 
 **One click. Full stack running.**
 
-DevStack is a VS Code extension for orchestrating dev server groups — configure once, run everything with a single click, and monitor output from one place. For setup and quick start, see [README.md](README.md).
+Muster is a VS Code extension for orchestrating dev server groups — configure once, run everything with a single click, and monitor output from one place. For setup and quick start, see [README.md](README.md).
 
 ---
 
@@ -21,8 +21,8 @@ DevStack is a VS Code extension for orchestrating dev server groups — configur
 | **Runtime** | Shell prepend | Custom `shell.prepend` commands run before the main command (venv, nvm, etc.) |
 | **Runtime** | Command suggestions | Scan `package.json`, `Makefile`, `pyproject.toml`, and `go.mod` for dev commands |
 | **Runtime** | Variable substitution | `${workspaceFolder}`, `${workspaceFolderBasename}`, and `${env:VAR}` in paths and commands |
-| **Config** | Workspace config | `.vscode/devstack.json` — commit-friendly, per-project server definitions |
-| **Config** | Global profiles | `~/.config/devstack/profiles.json` — reusable groups across workspaces |
+| **Config** | Workspace config | `.vscode/muster.json` — commit-friendly, per-project server definitions |
+| **Config** | Global profiles | `~/.config/muster/profiles.json` — reusable groups across workspaces |
 | **Config** | Profile extension | `extends` field to inherit a named global profile in workspace config |
 | **Config** | Auto IDs | Wizard generates slugified IDs with short UUID suffixes for new groups and services |
 | **Config** | Import example | One-click starter config with sample API + frontend services |
@@ -33,29 +33,29 @@ DevStack is a VS Code extension for orchestrating dev server groups — configur
 | **Monitoring** | Group / service filters | Narrow events to a specific group or service |
 | **Monitoring** | Category filters | Filter by optional pattern `category` tags |
 | **Monitoring** | Click-to-navigate | Click an event to reveal its terminal or jump to the diagnostic in the editor |
-| **UI** | Activity Bar | Dedicated DevStack sidebar with Server Groups and Events views |
+| **UI** | Activity Bar | Dedicated Muster sidebar with Server Groups and Events views |
 | **UI** | Status bar | Quick run/stop toggle for the default or last-used group with live state |
 | **UI** | Welcome view | Onboarding buttons: Create Group, Import Example, Open Visual Editor |
 | **UI** | Config wizard v0.1.3 | Redesigned visual editor with runtime detection, folder pickers, and Save & Run |
 | **UI** | Events timeline panel | Webview sidebar with segmented filters, chips, and scrollable event timeline |
 | **Security** | Trust gate | Run/stop/restart blocked in untrusted workspaces until the user trusts the folder |
-| **Security** | Config-only commands | Only commands defined in DevStack config can be executed — no arbitrary shell |
+| **Security** | Config-only commands | Only commands defined in Muster config can be executed — no arbitrary shell |
 | **Security** | Non-destructive | `keepExistingTerminals` (default true) preserves unrelated terminals; only tracked processes are stopped |
 
 ---
 
 ## 🤖 AI / Agent Integration
 
-DevStack exposes a native **MCP server** so AI agents in Cursor (and other MCP clients) can discover, start, stop, and monitor server groups — without bypassing VS Code security.
+Muster exposes a native **MCP server** so AI agents in Cursor (and other MCP clients) can discover, start, stop, and monitor server groups — without bypassing VS Code security.
 
 | Capability | Details |
 |------------|---------|
 | **MCP server** | Registered via `vscode.lm.registerMcpServerDefinitionProvider`; stdio transport to `dist/mcp/server.js` |
 | **Scoped access** | Agents can only act on group/service IDs defined in config; unknown IDs are rejected |
-| **Cursor skill** | `skills/devstack/SKILL.md` guides agents through the correct tool workflow |
+| **Cursor skill** | `skills/muster/SKILL.md` guides agents through the correct tool workflow |
 | **IPC bridge** | Extension hosts a localhost IPC server; MCP tools proxy through it for live status and control |
-| **MCP prompts** | `devstack/start` and `devstack/status` for common agent workflows |
-| **MCP resources** | `devstack://config/workspace` (live config summary) and `devstack://logs/{groupId}/{serviceId}` (recent output) |
+| **MCP prompts** | `muster/start` and `muster/status` for common agent workflows |
+| **MCP resources** | `muster://config/workspace` (live config summary) and `muster://logs/{groupId}/{serviceId}` (recent output) |
 
 ### Example agent workflow
 
@@ -63,7 +63,7 @@ DevStack exposes a native **MCP server** so AI agents in Cursor (and other MCP c
 2. Agent calls `list_server_groups` to discover available groups
 3. Agent calls `run_server_group({ "groupId": "dev" })` — user confirms in VS Code
 4. Agent polls `get_group_status` until services reach `running`
-5. Agent reads logs via `devstack://logs/dev/api` resource if errors appear
+5. Agent reads logs via `muster://logs/dev/api` resource if errors appear
 6. Agent calls `stop_server_group` or `restart_server_group` when done
 
 ---
@@ -85,21 +85,21 @@ Detailed reference for MCP tools exposed to agents.
 
 | Resource URI | Description |
 |--------------|-------------|
-| `devstack://config/workspace` | Live workspace config paths and merged groups summary |
-| `devstack://logs/{groupId}/{serviceId}` | Recent terminal output for a service (default 50 lines) |
+| `muster://config/workspace` | Live workspace config paths and merged groups summary |
+| `muster://logs/{groupId}/{serviceId}` | Recent terminal output for a service (default 50 lines) |
 
 ### MCP prompts
 
 | Prompt | Description |
 |--------|-------------|
-| `devstack/start` | Start the dev stack group best suited for this workspace |
-| `devstack/status` | Show which DevStack services are currently running |
+| `muster/start` | Start the dev stack group best suited for this workspace |
+| `muster/status` | Show which Muster services are currently running |
 
 ### Cursor skill
 
-Install or reference `skills/devstack/SKILL.md` so agents:
+Install or reference `skills/muster/SKILL.md` so agents:
 
-- Use DevStack MCP tools instead of arbitrary shell commands
+- Use Muster MCP tools instead of arbitrary shell commands
 - Follow the read → run → poll → stop workflow
 - Respect workspace trust and config-defined IDs only
 
@@ -108,5 +108,5 @@ Install or reference `skills/devstack/SKILL.md` so agents:
 ## Related
 
 - [README.md](README.md) — Quick start, visual configuration, and development setup
-- [schemas/devstack.schema.json](schemas/devstack.schema.json) — Full JSON Schema for `devstack.json`
-- [skills/devstack/SKILL.md](skills/devstack/SKILL.md) — Agent skill for Cursor and MCP clients
+- [schemas/muster.schema.json](schemas/muster.schema.json) — Full JSON Schema for `muster.json`
+- [skills/muster/SKILL.md](skills/muster/SKILL.md) — Agent skill for Cursor and MCP clients

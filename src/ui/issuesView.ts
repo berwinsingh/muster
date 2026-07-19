@@ -1,17 +1,17 @@
 import * as vscode from 'vscode';
 import { loadMergedConfig } from '../config/loader';
-import { getDevStackWorkspaceFolder } from '../config/workspaceFolder';
+import { getMusterWorkspaceFolder } from '../config/workspaceFolder';
 import {
   EVENT_SEVERITIES,
   EventDateRange,
   EventFilters,
   EventSeverity,
 } from '../monitoring/eventFilters';
-import { DevStackEvent, EventTracker, revealEvent } from '../monitoring/eventTracker';
+import { MusterEvent, EventTracker, revealEvent } from '../monitoring/eventTracker';
 import { ProcessTracker } from '../orchestration/processTracker';
 
 /** Must match package.json contributes.views id exactly. */
-export const ISSUES_VIEW_ID = 'devstack.issues';
+export const ISSUES_VIEW_ID = 'muster.issues';
 
 type IssuesFilters = {
   dateRange: EventDateRange;
@@ -67,7 +67,7 @@ function normalizeFilters(value: unknown): IssuesFilters {
 }
 
 function getIssuesHtml(webview: vscode.Webview): string {
-  const nonce = 'devstack-events-view';
+  const nonce = 'muster-events-view';
   const csp = [
     "default-src 'none'",
     `style-src ${webview.cspSource} 'unsafe-inline'`,
@@ -80,7 +80,7 @@ function getIssuesHtml(webview: vscode.Webview): string {
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="${csp}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DevStack Events</title>
+  <title>Muster Events</title>
   <style>
     * { box-sizing: border-box; }
     html, body { height: 100%; }
@@ -323,7 +323,7 @@ function getIssuesHtml(webview: vscode.Webview): string {
       if (!events.length) {
         container.innerHTML = '<div class="empty">' + (message.hasAnyEvents
           ? 'No events match the selected filters.'
-          : 'No events yet. Run a service through DevStack to begin capturing output.') + '</div>';
+          : 'No events yet. Run a service through Muster to begin capturing output.') + '</div>';
         return;
       }
 
@@ -482,7 +482,7 @@ export class IssuesViewProvider implements vscode.WebviewViewProvider, vscode.Di
     services: Array<{ id: string; name: string }>;
   }> {
     try {
-      return loadMergedConfig(getDevStackWorkspaceFolder()).groups.map((group) => ({
+      return loadMergedConfig(getMusterWorkspaceFolder()).groups.map((group) => ({
         id: group.id,
         label: group.label,
         services: group.services.map((service) => ({ id: service.id, name: service.name })),
@@ -493,7 +493,7 @@ export class IssuesViewProvider implements vscode.WebviewViewProvider, vscode.Di
   }
 
   private buildPayload(): {
-    events: DevStackEvent[];
+    events: MusterEvent[];
     severityCounts: Record<EventSeverity, number>;
     hasAnyEvents: boolean;
   } {

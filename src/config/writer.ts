@@ -42,7 +42,7 @@ export function buildWorkspaceConfigPayload(config: WritableWorkspaceConfig): Re
   });
 
   return {
-    $schema: '../schemas/devstack.schema.json',
+    $schema: '../schemas/muster.schema.json',
     ...validated,
   };
 }

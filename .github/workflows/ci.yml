@@ -1,4 +1,4 @@
-name: DevStack CI
+name: Muster CI
 
 on:
   pull_request:
@@ -53,13 +53,13 @@ jobs:
           if-no-files-found: error
 
       - name: Package VSIX
-        run: npm run package -- --out devstack-0.1.10.vsix
+        run: npm run package -- --out muster-0.1.10.vsix
 
       - name: Upload VSIX
         uses: actions/upload-artifact@v4
         with:
-          name: devstack-vsix
-          path: devstack-0.1.10.vsix
+          name: muster-vsix
+          path: muster-0.1.10.vsix
           if-no-files-found: error
 
       - name: Fail when Extension Host smoke test failed

@@ -63,7 +63,7 @@ export class ProcessTracker implements vscode.Disposable {
         this.appendOutput(tracked.groupId, tracked.serviceId, data);
       }
     } catch (err) {
-      console.warn('[DevStack] Unable to read terminal shell execution output:', err);
+      console.warn('[Muster] Unable to read terminal shell execution output:', err);
     }
   }
 
