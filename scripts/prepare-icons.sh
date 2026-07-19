@@ -3,20 +3,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MEDIA="$ROOT/media"
-SOURCE_FILENAME='c__Users_berwi_AppData_Roaming_Cursor_User_workspaceStorage_empty-window_images_Gemini_Generated_Image_e3wxete3wxete3wx-c5d86948-00b4-493f-a281-b6b1d909a18b.png'
+SOURCE_FILENAME='muster-mark.png'
+SOURCE="$ROOT/assets/$SOURCE_FILENAME"
 
-SOURCE=""
-for candidate in \
-  "$ROOT/assets/$SOURCE_FILENAME" \
-  "/mnt/c/Users/berwi/.cursor/projects/wsl-localhost-Ubuntu-home-berwin-SaaS-docq-one-click-terminal-setup-vscode/assets/$SOURCE_FILENAME"; do
-  if [ -f "$candidate" ]; then
-    SOURCE="$candidate"
-    break
-  fi
-done
-
-if [ -z "$SOURCE" ]; then
-  echo "Source icon not found" >&2
+if [ ! -f "$SOURCE" ]; then
+  echo "Source icon not found: $SOURCE" >&2
   exit 1
 fi
 

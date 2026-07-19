@@ -1,0 +1,13 @@
+{
+  "name": "muster",
+  "description": "Run, monitor, and stop dev server groups defined in .vscode/muster.json via the Muster VS Code extension — MCP tools plus an agent skill for the correct workflow.",
+  "version": "0.1.10",
+  "author": {
+    "name": "Berwin Singh",
+    "url": "https://github.com/berwinsingh"
+  },
+  "homepage": "https://github.com/berwinsingh/one-click-terminal-setup-vscode",
+  "repository": "https://github.com/berwinsingh/one-click-terminal-setup-vscode",
+  "license": "MIT",
+  "keywords": ["dev-server", "orchestration", "mcp", "process-manager"]
+}

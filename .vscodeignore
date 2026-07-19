@@ -8,3 +8,8 @@ dist-test/**
 scripts/run-integration-tests.cjs
 esbuild.mjs
 tsconfig.json
+docs/**
+.claude-plugin/**
+.mcp.json
+PUBLISHING.md
+assets/**

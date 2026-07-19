@@ -19,10 +19,17 @@ import {
   stopServerGroup,
 } from './tools';
 
-const server = new McpServer({
-  name: 'muster',
-  version: '0.1.0',
-});
+const server = new McpServer(
+  {
+    name: 'muster',
+    version: '0.1.0',
+  },
+  {
+    // Required when registering raw request handlers on server.server —
+    // without these declarations the SDK throws at setRequestHandler time.
+    capabilities: { tools: {}, resources: {}, prompts: {} },
+  }
+);
 
 server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [

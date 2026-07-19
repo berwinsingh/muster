@@ -1,0 +1,14 @@
+{
+  "name": "muster",
+  "owner": {
+    "name": "Berwin Singh",
+    "url": "https://github.com/berwinsingh"
+  },
+  "plugins": [
+    {
+      "name": "muster",
+      "source": "./",
+      "description": "Run, monitor, and stop dev server groups defined in .vscode/muster.json via the Muster VS Code extension — MCP tools plus an agent skill for the correct workflow."
+    }
+  ]
+}

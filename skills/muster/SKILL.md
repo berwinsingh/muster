@@ -83,6 +83,22 @@ If no config exists, create `.vscode/muster.json`:
 }
 ```
 
+## Terminal clients (Claude Code, Codex)
+
+The MCP server proxies to the Muster extension running inside VS Code or
+Cursor — the editor must be open with the extension activated for tool calls
+to succeed. If a tool call fails with "Muster extension IPC not available",
+tell the user to open the workspace in VS Code/Cursor with Muster installed,
+then retry. Do not fall back to running the service commands yourself in a
+shell.
+
+Registering the server manually (outside the plugin):
+
+```
+claude mcp add muster -- node <repo-or-extension-path>/bin/muster-mcp.cjs
+codex mcp add muster -- node <repo-or-extension-path>/bin/muster-mcp.cjs
+```
+
 ## Fallback: VS Code commands
 
 If MCP is unavailable, ask the user to run:

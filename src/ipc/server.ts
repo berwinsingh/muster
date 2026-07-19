@@ -4,6 +4,7 @@ import { loadMergedConfig, loadMergedConfigFromPaths } from '../config/loader';
 import { GroupRunner } from '../orchestration/groupRunner';
 import { ProcessTracker } from '../orchestration/processTracker';
 import { getUserProfilesPath, getWorkspaceConfigPath } from '../config/paths';
+import { removeDiscoveryFile, writeDiscoveryFile } from './discovery';
 
 export type IpcServer = {
   port: number;
@@ -147,17 +148,34 @@ export function startIpcServer(
     }
   });
 
-  server.listen(0, '127.0.0.1');
-  const addr = server.address();
-  const port = typeof addr === 'object' && addr ? addr.port : 0;
-
-  process.env.MUSTER_IPC_PORT = String(port);
-
-  return {
-    port,
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const result: IpcServer = {
+    port: 0,
     dispose: () => {
       server.close();
       delete process.env.MUSTER_IPC_PORT;
+      try {
+        removeDiscoveryFile(workspaceRoot);
+      } catch {
+        // best effort
+      }
     },
   };
+
+  // The port is only known once the 'listening' event fires; reading
+  // server.address() synchronously after listen() returns null.
+  server.listen(0, '127.0.0.1', () => {
+    const addr = server.address();
+    const port = typeof addr === 'object' && addr ? addr.port : 0;
+    result.port = port;
+    process.env.MUSTER_IPC_PORT = String(port);
+    try {
+      // Lets external MCP clients (Claude Code, Codex) find this endpoint.
+      writeDiscoveryFile({ port, workspace: workspaceRoot, pid: process.pid });
+    } catch {
+      // discovery is optional; in-VS-Code clients still work via the env var
+    }
+  });
+
+  return result;
 }

@@ -8,16 +8,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const mediaDir = join(root, 'media');
 
-const SOURCE_FILENAME =
-  'c__Users_berwi_AppData_Roaming_Cursor_User_workspaceStorage_empty-window_images_Gemini_Generated_Image_e3wxete3wxete3wx-c5d86948-00b4-493f-a281-b6b1d909a18b.png';
+const SOURCE_FILENAME = 'muster-mark.png';
 
-const sourceCandidates = [
-  join(root, 'assets', SOURCE_FILENAME),
-  '/mnt/c/Users/berwi/.cursor/projects/wsl-localhost-Ubuntu-home-berwin-SaaS-docq-one-click-terminal-setup-vscode/assets/' +
-    SOURCE_FILENAME,
-  'C:/Users/berwi/.cursor/projects/wsl-localhost-Ubuntu-home-berwin-SaaS-docq-one-click-terminal-setup-vscode/assets/' +
-    SOURCE_FILENAME,
-];
+const sourceCandidates = [join(root, 'assets', SOURCE_FILENAME)];
 
 const WHITE_BG = { r: 255, g: 255, b: 255, alpha: 1 };
 const SQUARE_TOLERANCE = 0.01;
