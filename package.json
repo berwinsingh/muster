@@ -41,6 +41,10 @@
     "onCommand:muster.openConfig"
   ],
   "main": "./dist/extension.js",
+  "bin": {
+    "muster": "./bin/muster.cjs",
+    "muster-mcp": "./bin/muster-mcp.cjs"
+  },
   "contributes": {
     "commands": [
       {

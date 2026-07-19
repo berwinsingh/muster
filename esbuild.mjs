@@ -63,12 +63,20 @@ if (testOnly) {
     external: ['vscode'],
   });
 
+  const cliCtx = await esbuild.context({
+    ...common,
+    entryPoints: ['src/cli/index.ts'],
+    outfile: 'dist/cli.js',
+    format: 'cjs',
+    external: ['vscode'],
+  });
+
   if (watch) {
-    await Promise.all([extensionCtx.watch(), mcpCtx.watch()]);
+    await Promise.all([extensionCtx.watch(), mcpCtx.watch(), cliCtx.watch()]);
     console.log('[muster] watching...');
   } else {
-    await Promise.all([extensionCtx.rebuild(), mcpCtx.rebuild()]);
-    await Promise.all([extensionCtx.dispose(), mcpCtx.dispose()]);
+    await Promise.all([extensionCtx.rebuild(), mcpCtx.rebuild(), cliCtx.rebuild()]);
+    await Promise.all([extensionCtx.dispose(), mcpCtx.dispose(), cliCtx.dispose()]);
     console.log('[muster] build complete');
   }
 }

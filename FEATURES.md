@@ -41,6 +41,7 @@ Muster is a VS Code extension for orchestrating dev server groups — configure 
 | **UI** | Welcome view | Onboarding buttons: Create Group, Import Example, Open Visual Editor |
 | **UI** | Config wizard v0.1.3 | Redesigned visual editor with runtime detection, folder pickers, and Save & Run |
 | **UI** | Events timeline panel | Webview sidebar with segmented filters, chips, and scrollable event timeline |
+| **UI** | `muster` CLI + TUI | Run/stop/restart groups, statuses, and logs from any terminal; interactive dashboard with keyboard nav, filtering, and log following |
 | **Security** | Trust gate | Run/stop/restart blocked in untrusted workspaces until the user trusts the folder |
 | **Security** | Config-only commands | Only commands defined in Muster config can be executed — no arbitrary shell |
 | **Security** | Non-destructive | `keepExistingTerminals` (default true) preserves unrelated terminals; only tracked processes are stopped |

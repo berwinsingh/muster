@@ -108,6 +108,23 @@ Default patterns are used when `monitoring` is omitted.
 | `Muster: Import Example` | Load a starter configuration |
 | `Muster: Open Config` | Open raw JSON config |
 
+## CLI
+
+Control groups from any terminal while VS Code is open — including an
+interactive dashboard in the spirit of Claude Code / opencode:
+
+```bash
+muster              # interactive TUI: live status, ↑↓ select, r run, s stop, l logs, / filter
+muster ls           # groups + services + live status (add --json for scripting)
+muster run full-stack
+muster logs full-stack api -f
+muster stop full-stack
+```
+
+Get `muster` on your PATH with `npm link` from a repo checkout, or run
+`node bin/muster.cjs` directly (it finds the CLI inside an installed
+extension too).
+
 ## MCP integration
 
 Muster exposes MCP tools for AI agents to list groups, run/stop services, and read terminal output. Existing JSON config and MCP tools remain fully compatible.
