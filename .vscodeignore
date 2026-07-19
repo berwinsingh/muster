@@ -12,3 +12,4 @@ docs/**
 .claude-plugin/**
 .mcp.json
 PUBLISHING.md
+assets/**

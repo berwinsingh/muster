@@ -15,18 +15,9 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parent.parent
 MEDIA = ROOT / "media"
-SOURCE_FILENAME = (
-    "c__Users_berwi_AppData_Roaming_Cursor_User_workspaceStorage_empty-window_images_"
-    "Gemini_Generated_Image_e3wxete3wxete3wx-c5d86948-00b4-493f-a281-b6b1d909a18b.png"
-)
+SOURCE_FILENAME = "muster-mark.png"
 
-SOURCE_CANDIDATES = [
-    ROOT / "assets" / SOURCE_FILENAME,
-    Path(
-        "/mnt/c/Users/berwi/.cursor/projects/wsl-localhost-Ubuntu-home-berwin-SaaS-docq-one-click-terminal-setup-vscode/assets/"
-        + SOURCE_FILENAME
-    ),
-]
+SOURCE_CANDIDATES = [ROOT / "assets" / SOURCE_FILENAME]
 
 
 def find_source() -> Path:
