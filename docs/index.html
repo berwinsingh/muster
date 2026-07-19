@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Muster — One click. Full stack running.</title>
+<meta name="description" content="Muster is a VS Code extension that assembles your dev servers — API, frontend, workers — into named groups you run, monitor, and stop with one click. MCP built in for AI agents.">
+<link rel="icon" type="image/png" href="icon.png">
+<meta property="og:title" content="Muster — One click. Full stack running.">
+<meta property="og:description" content="Assemble your dev servers into named groups. Run, monitor, and stop everything from one panel in VS Code. MCP built in for AI agents.">
+<meta property="og:image" content="icon-256.png">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0d10;
+    --bg-raise: #12151a;
+    --bg-card: #14181e;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-soft: rgba(255, 255, 255, 0.05);
+    --text: #e8eaed;
+    --muted: #9aa3ad;
+    --faint: #6b7480;
+    --amber: #ffb454;
+    --amber-deep: #e89b2f;
+    --green: #4ecb71;
+    --red: #f47067;
+    --yellow: #f2cc60;
+    --blue: #6cb6ff;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  ::selection { background: rgba(255, 180, 84, 0.3); }
+  a { color: inherit; }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- nav ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(12px);
+    background: rgba(11, 13, 16, 0.82);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .nav-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-weight: 600; font-size: 16px;
+    letter-spacing: 0.14em; text-decoration: none;
+  }
+  .brand .mark { display: flex; flex-direction: column; gap: 2px; }
+  .brand .mark span {
+    width: 14px; height: 3px; border-radius: 2px; background: var(--amber);
+  }
+  .brand .mark span:nth-child(2) { width: 10px; opacity: 0.75; }
+  .brand .mark span:nth-child(3) { width: 6px; opacity: 0.5; }
+  .nav-links { display: flex; align-items: center; gap: 28px; font-size: 14.5px; }
+  .nav-links a { color: var(--muted); text-decoration: none; transition: color 0.15s; }
+  .nav-links a:hover { color: var(--text); }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--sans); font-weight: 600; font-size: 15px;
+    padding: 10px 20px; border-radius: 10px;
+    text-decoration: none; cursor: pointer; border: 1px solid transparent;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s, border-color 0.15s;
+  }
+  .btn-primary {
+    background: var(--amber); color: #1a1204;
+    box-shadow: 0 0 0 1px rgba(255, 180, 84, 0.4), 0 8px 24px -8px rgba(255, 180, 84, 0.5);
+  }
+  .btn-primary:hover { transform: translateY(-1px); background: #ffc272; }
+  .btn-ghost { border-color: var(--line); color: var(--text); }
+  .btn-ghost:hover { border-color: rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.04); }
+  .btn-sm { padding: 8px 16px; font-size: 14px; }
+
+  /* ---------- hero ---------- */
+  .hero {
+    position: relative;
+    padding: 96px 0 72px;
+    text-align: center;
+  }
+  .hero::before {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 50% 40% at 50% 0%, rgba(255, 180, 84, 0.09), transparent 70%),
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 100% 100%, 48px 48px, 48px 48px;
+    mask-image: linear-gradient(to bottom, black 55%, transparent);
+    pointer-events: none;
+  }
+  .hero > .wrap { position: relative; }
+  .eyebrow {
+    display: inline-block;
+    font-family: var(--mono); font-size: 12.5px; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--amber);
+    border: 1px solid rgba(255, 180, 84, 0.3);
+    background: rgba(255, 180, 84, 0.07);
+    padding: 6px 14px; border-radius: 999px;
+    margin-bottom: 28px;
+  }
+  h1 {
+    font-size: clamp(44px, 7.5vw, 84px);
+    line-height: 1.02;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 24px;
+  }
+  h1 .accent { color: var(--amber); }
+  .hero-sub {
+    max-width: 640px; margin: 0 auto 36px;
+    font-size: clamp(17px, 2vw, 20px);
+    color: var(--muted);
+  }
+  .hero-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+  .hero-meta {
+    font-family: var(--mono); font-size: 13px; color: var(--faint);
+  }
+  .hero-meta span { margin: 0 10px; }
+
+  /* ---------- window mock ---------- */
+  .mock-outer {
+    position: relative;
+    margin: 64px auto 0;
+    max-width: 940px;
+  }
+  .mock-outer::before {
+    content: "";
+    position: absolute; inset: -8% -12% -20%;
+    background: radial-gradient(ellipse 60% 55% at 50% 45%, rgba(255, 180, 84, 0.13), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .window {
+    position: relative; z-index: 1;
+    background: var(--bg-raise);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 40px 80px -32px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0,0,0,0.4);
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .titlebar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px;
+    background: #0e1116;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-r { background: #ff5f57; } .dot-y { background: #febc2e; } .dot-g { background: #28c840; }
+  .title-text {
+    flex: 1; text-align: center;
+    color: var(--faint); font-size: 12.5px;
+  }
+  .win-body { display: grid; grid-template-columns: 250px 1fr; min-height: 380px; }
+  .sidebar {
+    background: #0e1116;
+    border-right: 1px solid var(--line-soft);
+    padding: 14px 0;
+  }
+  .side-h {
+    padding: 4px 16px 10px;
+    font-size: 11px; letter-spacing: 0.1em; color: var(--faint); font-weight: 600;
+  }
+  .tree-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 16px;
+    color: var(--muted); white-space: nowrap;
+  }
+  .tree-row.group { color: var(--text); font-weight: 500; }
+  .tree-row.svc { padding-left: 34px; }
+  .tree-row .chev { color: var(--faint); font-size: 10px; }
+  .tag {
+    margin-left: auto;
+    font-size: 10px; padding: 1px 7px; border-radius: 999px;
+    background: rgba(78, 203, 113, 0.12); color: var(--green);
+    border: 1px solid rgba(78, 203, 113, 0.25);
+    opacity: 0; animation: fadein 0.4s ease forwards;
+  }
+  .tag.idle { background: rgba(255,255,255,0.05); color: var(--faint); border-color: var(--line); opacity: 1; animation: none; }
+  .status {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--faint); flex-shrink: 0;
+  }
+  .status.animate { animation: light-up 0.5s ease forwards; }
+  @keyframes light-up { to { background: var(--green); box-shadow: 0 0 8px rgba(78,203,113,0.6); } }
+  .side-events { margin-top: 18px; }
+  .chip-row { display: flex; gap: 6px; padding: 6px 16px; flex-wrap: wrap; }
+  .chip {
+    font-size: 10.5px; padding: 2px 9px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted);
+  }
+  .chip.warn { color: var(--yellow); border-color: rgba(242, 204, 96, 0.35); }
+
+  .term { padding: 0; display: flex; flex-direction: column; }
+  .term-tabs {
+    display: flex; border-bottom: 1px solid var(--line-soft); background: #0e1116;
+  }
+  .term-tab {
+    padding: 9px 18px; font-size: 12px; color: var(--faint);
+    border-right: 1px solid var(--line-soft);
+  }
+  .term-tab.active { color: var(--amber); background: var(--bg-raise); box-shadow: inset 0 2px 0 var(--amber); }
+  .term-lines { padding: 16px 20px; flex: 1; }
+  .tl {
+    opacity: 0; transform: translateY(4px);
+    animation: line-in 0.35s ease forwards;
+    padding: 2.5px 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  @keyframes line-in { to { opacity: 1; transform: none; } }
+  @keyframes fadein { to { opacity: 1; } }
+  .tl .p { color: var(--green); }
+  .tl .cmd { color: var(--text); }
+  .tl .info { color: var(--blue); }
+  .tl .must { color: var(--amber); }
+  .tl .ok { color: var(--green); }
+  .caret {
+    display: inline-block; width: 8px; height: 15px;
+    background: var(--amber); vertical-align: text-bottom;
+    animation: blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ---------- sections ---------- */
+  section { padding: 96px 0; position: relative; }
+  .sec-eyebrow {
+    font-family: var(--mono); font-size: 13px; font-weight: 500;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--amber);
+    margin-bottom: 14px;
+  }
+  h2 {
+    font-size: clamp(30px, 4.5vw, 46px);
+    line-height: 1.1; font-weight: 700; letter-spacing: -0.02em;
+    margin-bottom: 18px;
+  }
+  .sec-sub { color: var(--muted); max-width: 560px; font-size: 18px; }
+
+  /* steps */
+  .steps {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    margin-top: 56px;
+  }
+  .step {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 28px;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .step:hover { transform: translateY(-3px); border-color: rgba(255, 180, 84, 0.3); }
+  .step-num {
+    font-family: var(--mono); font-size: 13px; color: var(--amber);
+    margin-bottom: 16px; display: block;
+  }
+  .step h3 { font-size: 20px; margin-bottom: 10px; font-weight: 600; }
+  .step p { color: var(--muted); font-size: 15.5px; }
+  .step code {
+    font-family: var(--mono); font-size: 13px;
+    background: rgba(255, 180, 84, 0.09); color: var(--amber);
+    padding: 1.5px 7px; border-radius: 6px;
+  }
+
+  /* features */
+  .feat-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    margin-top: 56px;
+  }
+  .feat {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 26px;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .feat:hover { transform: translateY(-3px); border-color: rgba(255, 255, 255, 0.16); }
+  .feat-icon {
+    width: 42px; height: 42px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 180, 84, 0.1);
+    border: 1px solid rgba(255, 180, 84, 0.22);
+    margin-bottom: 18px;
+    font-size: 19px;
+  }
+  .feat h3 { font-size: 17.5px; font-weight: 600; margin-bottom: 8px; }
+  .feat p { color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+  .feat p code {
+    font-family: var(--mono); font-size: 12.5px;
+    background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 5px;
+    color: var(--text);
+  }
+
+  /* agents */
+  .agents-panel {
+    margin-top: 56px;
+    background: linear-gradient(160deg, rgba(255, 180, 84, 0.06), transparent 45%), var(--bg-card);
+    border: 1px solid rgba(255, 180, 84, 0.18);
+    border-radius: 20px;
+    padding: 44px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 44px;
+  }
+  .agents-panel h3 { font-size: 15px; font-weight: 600; color: var(--faint); letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--mono); margin-bottom: 16px; }
+  .tools { display: flex; flex-direction: column; gap: 9px; }
+  .tool {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 13.5px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .tool .t-name { color: var(--text); }
+  .badge {
+    margin-left: auto; flex-shrink: 0;
+    font-size: 10.5px; padding: 2px 9px; border-radius: 999px; letter-spacing: 0.04em;
+  }
+  .badge.read { background: rgba(108, 182, 255, 0.1); color: var(--blue); border: 1px solid rgba(108, 182, 255, 0.3); }
+  .badge.confirm { background: rgba(255, 180, 84, 0.1); color: var(--amber); border: 1px solid rgba(255, 180, 84, 0.3); }
+  .agents-copy p { color: var(--muted); margin-bottom: 16px; font-size: 16px; }
+  .agents-copy p strong { color: var(--text); }
+  .res-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .res {
+    font-family: var(--mono); font-size: 12.5px; color: var(--amber);
+    background: rgba(255, 180, 84, 0.06);
+    border: 1px solid rgba(255, 180, 84, 0.16);
+    padding: 8px 12px; border-radius: 8px;
+    overflow-x: auto; white-space: nowrap;
+  }
+
+  /* config */
+  .config-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: center; margin-top: 12px; }
+  .config-copy .sec-sub { margin-bottom: 24px; }
+  .check-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .check-list li { position: relative; padding-left: 28px; color: var(--muted); font-size: 15.5px; }
+  .check-list li::before {
+    content: "✓"; position: absolute; left: 0; top: 0;
+    color: var(--green); font-weight: 700; font-family: var(--mono);
+  }
+  .code-window {
+    background: #0d1015;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px -24px rgba(0,0,0,0.6);
+  }
+  .code-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 11px 16px; border-bottom: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 12px; color: var(--faint);
+  }
+  .code-head .dots { display: flex; gap: 6px; }
+  .code-head .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+  pre {
+    font-family: var(--mono); font-size: 13px; line-height: 1.65;
+    padding: 20px 22px; overflow-x: auto; color: var(--muted);
+  }
+  .k { color: var(--blue); }        /* keys */
+  .s { color: #9ecb88; }            /* strings */
+  .n { color: var(--amber); }       /* numbers/special */
+  .pu { color: var(--faint); }      /* punctuation */
+
+  /* install */
+  .install-box {
+    margin-top: 48px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 36px;
+    max-width: 760px;
+  }
+  .install-step { display: flex; gap: 18px; margin-bottom: 22px; }
+  .install-step:last-child { margin-bottom: 0; }
+  .in-num {
+    font-family: var(--mono); font-size: 13px; color: var(--amber);
+    width: 26px; height: 26px; flex-shrink: 0;
+    border: 1px solid rgba(255, 180, 84, 0.35); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+  }
+  .in-body { flex: 1; min-width: 0; }
+  .in-body p { color: var(--muted); font-size: 15px; margin-bottom: 10px; }
+  .cmd-block {
+    position: relative;
+    font-family: var(--mono); font-size: 13.5px;
+    background: #0d1015; border: 1px solid var(--line);
+    border-radius: 10px; padding: 13px 76px 13px 16px;
+    color: var(--text); overflow-x: auto; white-space: pre;
+  }
+  .cmd-block .dollar { color: var(--faint); user-select: none; }
+  .copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: #171b21; border: 1px solid var(--line);
+    color: var(--muted); border-radius: 7px;
+    font-family: var(--mono); font-size: 11px;
+    padding: 4px 9px; cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .copy-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+  .copy-btn.done { color: var(--green); border-color: rgba(78,203,113,0.4); }
+  .marketplace-note {
+    margin-top: 26px; padding-top: 22px; border-top: 1px dashed var(--line);
+    font-size: 14px; color: var(--faint);
+  }
+
+  /* footer */
+  footer {
+    border-top: 1px solid var(--line-soft);
+    padding: 48px 0 56px;
+  }
+  .foot-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
+  .foot-left { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 14px; }
+  .foot-links { display: flex; gap: 24px; font-size: 14px; }
+  .foot-links a { color: var(--muted); text-decoration: none; }
+  .foot-links a:hover { color: var(--text); }
+
+  /* reveal on scroll */
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; animation-delay: 0s !important; transition-duration: 0.01ms !important; }
+    .reveal { opacity: 1; transform: none; }
+    .tl, .tag { opacity: 1; }
+  }
+
+  @media (max-width: 900px) {
+    .steps, .feat-grid { grid-template-columns: 1fr; }
+    .agents-panel { grid-template-columns: 1fr; padding: 30px; }
+    .config-grid { grid-template-columns: 1fr; gap: 36px; }
+    .win-body { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    section { padding: 68px 0; }
+    .hero { padding: 64px 0 48px; }
+    .nav-links a:not(.btn) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-inner">
+    <a class="brand" href="#">
+      <span class="mark"><span></span><span></span><span></span></span>
+      MUSTER
+    </a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#agents">Agents</a>
+      <a href="#install">Install</a>
+      <a class="btn btn-ghost btn-sm" href="https://github.com/berwinsingh/one-click-terminal-setup-vscode">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">// a VS Code extension for dev server orchestration</span>
+    <h1>One click.<br><span class="accent">Full stack running.</span></h1>
+    <p class="hero-sub">
+      Muster assembles your dev servers — API, frontend, workers — into named groups
+      you run, monitor, and stop from a single panel. No more six terminals and a prayer.
+    </p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="#install">Install Muster</a>
+      <a class="btn btn-ghost" href="https://github.com/berwinsingh/one-click-terminal-setup-vscode">View source ↗</a>
+    </div>
+    <p class="hero-meta">MIT licensed<span>·</span>VS Code ≥ 1.96<span>·</span>MCP server built in</p>
+
+    <div class="mock-outer">
+      <div class="window">
+        <div class="titlebar">
+          <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+          <span class="title-text">muster — Visual Studio Code</span>
+        </div>
+        <div class="win-body">
+          <div class="sidebar">
+            <div class="side-h">SERVER GROUPS</div>
+            <div class="tree-row group"><span class="chev">▾</span> Full Stack Dev <span class="tag" style="animation-delay:5.2s">running</span></div>
+            <div class="tree-row svc"><span class="status animate" style="animation-delay:2.4s"></span> FastAPI</div>
+            <div class="tree-row svc"><span class="status animate" style="animation-delay:3.6s"></span> Celery Worker</div>
+            <div class="tree-row svc"><span class="status animate" style="animation-delay:4.8s"></span> Next.js</div>
+            <div class="tree-row group"><span class="chev">▸</span> API Only <span class="tag idle">idle</span></div>
+            <div class="tree-row group"><span class="chev">▸</span> Split Demo <span class="tag idle">idle</span></div>
+            <div class="side-events">
+              <div class="side-h">EVENTS</div>
+              <div class="chip-row">
+                <span class="chip">All</span><span class="chip warn">2 warnings</span><span class="chip">Today</span>
+              </div>
+            </div>
+          </div>
+          <div class="term">
+            <div class="term-tabs">
+              <div class="term-tab active">Muster: FastAPI</div>
+              <div class="term-tab">Muster: Next.js</div>
+              <div class="term-tab">Muster: Worker</div>
+            </div>
+            <div class="term-lines">
+              <div class="tl" style="animation-delay:0.4s"><span class="p">❯</span> <span class="cmd">muster run full-stack</span></div>
+              <div class="tl" style="animation-delay:1.0s"><span class="must">[muster]</span> starting 3 services · layout: dedicated</div>
+              <div class="tl" style="animation-delay:1.6s"><span class="info">INFO</span>  Uvicorn running on http://127.0.0.1:8000</div>
+              <div class="tl" style="animation-delay:2.3s"><span class="info">INFO</span>  Application startup complete.</div>
+              <div class="tl" style="animation-delay:2.9s"><span class="must">[muster]</span> ready pattern matched → starting dependents</div>
+              <div class="tl" style="animation-delay:3.5s">celery@dev ready. 4 workers online</div>
+              <div class="tl" style="animation-delay:4.2s">▲ Next.js — ready on http://localhost:3000</div>
+              <div class="tl" style="animation-delay:5.0s"><span class="ok">✓</span> <span class="must">[muster]</span> full-stack · <span class="ok">3/3 services running</span> <span class="caret"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="wrap">
+    <p class="sec-eyebrow reveal">How it works</p>
+    <h2 class="reveal">Muster in three moves</h2>
+    <p class="sec-sub reveal">Define once, commit it to the repo, and everyone on the team gets the same one-click stack.</p>
+    <div class="steps">
+      <div class="step reveal">
+        <span class="step-num">01</span>
+        <h3>Define your groups</h3>
+        <p>Use the visual wizard — folder pickers, command suggestions, runtime detection — or write <code>.vscode/muster.json</code> by hand. Group your API, frontend, and workers with dependencies and delays.</p>
+      </div>
+      <div class="step reveal">
+        <span class="step-num">02</span>
+        <h3>Run the group</h3>
+        <p>One click in the sidebar, the status bar, or the command palette. Muster opens terminals in your chosen layout — <code>dedicated</code>, <code>aggregated</code>, or <code>split</code> — and starts everything in order.</p>
+      </div>
+      <div class="step reveal">
+        <span class="step-num">03</span>
+        <h3>Watch everything</h3>
+        <p>Live status per service in the tree. Errors and warnings from every terminal collected into one Events panel — filter by severity, group, or date, and click to jump to the source.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <p class="sec-eyebrow reveal">Features</p>
+    <h2 class="reveal">Everything a running stack needs</h2>
+    <div class="feat-grid">
+      <div class="feat reveal">
+        <div class="feat-icon">⊞</div>
+        <h3>Terminal layouts</h3>
+        <p>One terminal per service, everything multiplexed into a single pane, or split panes across the editor — per group, your call.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">⇄</div>
+        <h3>Ordered startup</h3>
+        <p>Parallel or sequenced starts with <code>dependsOn</code> graphs and per-service delays. Your worker never boots before the broker again.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">◉</div>
+        <h3>Ready detection</h3>
+        <p>Gate dependents on a <code>readyPattern</code> regex in terminal output or an HTTP <code>healthUrl</code> check — not on hope.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">🐍</div>
+        <h3>Runtime aware</h3>
+        <p>Auto-detects Python venvs and <code>.nvmrc</code> files, and activates the right environment before your command runs.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">⚡</div>
+        <h3>Event monitoring</h3>
+        <p>Configurable regex patterns scan every service's output plus VS Code diagnostics. One timeline, filterable, click-to-navigate.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">🛡</div>
+        <h3>Trust &amp; safety</h3>
+        <p>Blocked in untrusted workspaces. Only commands defined in config can run — no arbitrary shell. Your other terminals are never touched.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="agents">
+  <div class="wrap">
+    <p class="sec-eyebrow reveal">MCP built in</p>
+    <h2 class="reveal">Your AI agent can run the stack too</h2>
+    <p class="sec-sub reveal">Muster ships a native Model Context Protocol server. Agents in Cursor, Claude, and any MCP client can discover, start, and monitor your groups — without ever getting arbitrary shell access.</p>
+    <div class="agents-panel reveal">
+      <div>
+        <h3>Tools</h3>
+        <div class="tools">
+          <div class="tool"><span class="t-name">list_server_groups</span><span class="badge read">read</span></div>
+          <div class="tool"><span class="t-name">get_group_status</span><span class="badge read">read</span></div>
+          <div class="tool"><span class="t-name">describe_config</span><span class="badge read">read</span></div>
+          <div class="tool"><span class="t-name">run_server_group</span><span class="badge confirm">confirm</span></div>
+          <div class="tool"><span class="t-name">stop_server_group</span><span class="badge confirm">confirm</span></div>
+          <div class="tool"><span class="t-name">restart_server_group</span><span class="badge confirm">confirm</span></div>
+        </div>
+      </div>
+      <div class="agents-copy">
+        <p><strong>Scoped by design.</strong> Agents can only act on group and service IDs defined in your config — unknown IDs are rejected, and every write action requires your confirmation in VS Code.</p>
+        <p><strong>Logs and config as resources.</strong> Agents read live state through MCP resources instead of scraping terminals:</p>
+        <div class="res-list">
+          <div class="res">muster://config/workspace</div>
+          <div class="res">muster://logs/{groupId}/{serviceId}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="config">
+  <div class="wrap config-grid">
+    <div class="config-copy">
+      <p class="sec-eyebrow reveal">Configuration</p>
+      <h2 class="reveal">One file, whole team</h2>
+      <p class="sec-sub reveal">A single <span style="font-family:var(--mono);font-size:0.85em">muster.json</span> in your repo defines the stack for everyone. Schema-validated, wizard-editable, diff-friendly.</p>
+      <ul class="check-list reveal">
+        <li>JSON Schema autocomplete in VS Code</li>
+        <li><span style="font-family:var(--mono);font-size:0.9em">${workspaceFolder}</span> and env-var substitution</li>
+        <li>Global profiles in <span style="font-family:var(--mono);font-size:0.9em">~/.config/muster</span>, extendable per-workspace</li>
+        <li>Env files, custom env vars, shell prepends</li>
+      </ul>
+    </div>
+    <div class="code-window reveal">
+      <div class="code-head">
+        <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+        .vscode/muster.json
+      </div>
+      <pre><span class="pu">{</span>
+  <span class="k">"groups"</span><span class="pu">: [{</span>
+    <span class="k">"id"</span><span class="pu">:</span> <span class="s">"full-stack"</span><span class="pu">,</span>
+    <span class="k">"label"</span><span class="pu">:</span> <span class="s">"Full Stack Dev"</span><span class="pu">,</span>
+    <span class="k">"layout"</span><span class="pu">:</span> <span class="s">"dedicated"</span><span class="pu">,</span>
+    <span class="k">"services"</span><span class="pu">: [</span>
+      <span class="pu">{</span>
+        <span class="k">"id"</span><span class="pu">:</span> <span class="s">"api"</span><span class="pu">,</span>
+        <span class="k">"command"</span><span class="pu">:</span> <span class="s">"uvicorn main:app --reload"</span><span class="pu">,</span>
+        <span class="k">"cwd"</span><span class="pu">:</span> <span class="s">"${workspaceFolder}/backend"</span><span class="pu">,</span>
+        <span class="k">"readyPattern"</span><span class="pu">:</span> <span class="s">"startup complete"</span>
+      <span class="pu">},</span>
+      <span class="pu">{</span>
+        <span class="k">"id"</span><span class="pu">:</span> <span class="s">"worker"</span><span class="pu">,</span>
+        <span class="k">"command"</span><span class="pu">:</span> <span class="s">"celery -A app worker"</span><span class="pu">,</span>
+        <span class="k">"dependsOn"</span><span class="pu">: [</span><span class="s">"api"</span><span class="pu">],</span>
+        <span class="k">"delayMs"</span><span class="pu">:</span> <span class="n">2000</span>
+      <span class="pu">},</span>
+      <span class="pu">{</span>
+        <span class="k">"id"</span><span class="pu">:</span> <span class="s">"frontend"</span><span class="pu">,</span>
+        <span class="k">"command"</span><span class="pu">:</span> <span class="s">"pnpm dev"</span><span class="pu">,</span>
+        <span class="k">"cwd"</span><span class="pu">:</span> <span class="s">"${workspaceFolder}/frontend"</span>
+      <span class="pu">}</span>
+    <span class="pu">]</span>
+  <span class="pu">}]</span>
+<span class="pu">}</span></pre>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <p class="sec-eyebrow reveal">Install</p>
+    <h2 class="reveal">Muster your stack</h2>
+    <p class="sec-sub reveal">Build from source in under a minute.</p>
+    <div class="install-box reveal">
+      <div class="install-step">
+        <span class="in-num">1</span>
+        <div class="in-body">
+          <p>Clone the repo and install dependencies</p>
+          <div class="cmd-block"><span class="dollar">$</span> git clone https://github.com/berwinsingh/one-click-terminal-setup-vscode.git
+<span class="dollar">$</span> cd one-click-terminal-setup-vscode &amp;&amp; npm install<button class="copy-btn" data-copy="git clone https://github.com/berwinsingh/one-click-terminal-setup-vscode.git && cd one-click-terminal-setup-vscode && npm install">copy</button></div>
+        </div>
+      </div>
+      <div class="install-step">
+        <span class="in-num">2</span>
+        <div class="in-body">
+          <p>Package the extension</p>
+          <div class="cmd-block"><span class="dollar">$</span> npm run package<button class="copy-btn" data-copy="npm run package">copy</button></div>
+        </div>
+      </div>
+      <div class="install-step">
+        <span class="in-num">3</span>
+        <div class="in-body">
+          <p>Install the VSIX into VS Code</p>
+          <div class="cmd-block"><span class="dollar">$</span> code --install-extension muster-0.1.10.vsix<button class="copy-btn" data-copy="code --install-extension muster-0.1.10.vsix">copy</button></div>
+        </div>
+      </div>
+      <p class="marketplace-note">📦 Marketplace listing coming soon — star the repo to follow along.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-inner">
+    <div class="foot-left">
+      <a class="brand" href="#" style="font-size:14px">
+        <span class="mark"><span></span><span></span><span></span></span>
+        MUSTER
+      </a>
+      <span>· MIT License · Built by Berwin Singh</span>
+    </div>
+    <div class="foot-links">
+      <a href="https://github.com/berwinsingh/one-click-terminal-setup-vscode">GitHub</a>
+      <a href="https://github.com/berwinsingh/one-click-terminal-setup-vscode/blob/main/FEATURES.md">Docs</a>
+      <a href="https://github.com/berwinsingh/one-click-terminal-setup-vscode/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+  }, { threshold: 0.12 });
+  document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+
+  document.querySelectorAll(".copy-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(btn.dataset.copy);
+      btn.textContent = "copied";
+      btn.classList.add("done");
+      setTimeout(() => { btn.textContent = "copy"; btn.classList.remove("done"); }, 1600);
+    });
+  });
+</script>
+
+</body>
+</html>
