@@ -6,6 +6,7 @@ import { startIpcServer } from './ipc/server';
 import { EventTracker } from './monitoring/eventTracker';
 import { registerMcpProvider } from './mcpProvider';
 import { GroupRunner } from './orchestration/groupRunner';
+import { MusterNarrator } from './orchestration/narrator';
 import { ProcessTracker } from './orchestration/processTracker';
 import { assertWorkspaceTrusted, validateGroupId, validateServiceId } from './security/trust';
 import {
@@ -137,8 +138,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   try {
     tracker = new ProcessTracker();
-    runner = new GroupRunner(tracker);
-    context.subscriptions.push(tracker);
+    const narrator = new MusterNarrator();
+    runner = new GroupRunner(tracker, narrator);
+    context.subscriptions.push(tracker, narrator);
     musterLog('step ok: ProcessTracker/GroupRunner');
   } catch (err) {
     musterLogError('ProcessTracker/GroupRunner', err);
