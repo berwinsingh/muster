@@ -103,28 +103,89 @@ Install or reference `skills/muster/SKILL.md` so agents:
 - Follow the read → run → poll → stop workflow
 - Respect workspace trust and config-defined IDs only
 
-### Terminal agents (Claude Code, Codex)
+### Client setup
 
-The extension writes its IPC endpoint to `~/.config/muster/ipc/` on startup,
-so MCP clients outside VS Code can find it. `bin/muster-mcp.cjs` locates the
-compiled MCP server (repo build or installed extension) and launches it:
+**Prerequisite for every client below:** VS Code (or Cursor) must be open
+with the Muster extension activated — tool calls proxy through the running
+extension via a localhost IPC endpoint written to `~/.config/muster/ipc/`
+on startup, so trust checks and run confirmations still apply. Stale
+endpoints from crashed sessions are detected and cleaned automatically.
 
-```bash
-claude mcp add muster -- node <path-to-repo>/bin/muster-mcp.cjs
-codex mcp add muster -- node <path-to-repo>/bin/muster-mcp.cjs
-```
+`bin/muster-mcp.cjs` is the universal launcher: it finds the compiled MCP
+server automatically — an explicit `MUSTER_MCP_SERVER` env var, a local
+repo build (`dist/mcp/server.js`), or the newest installed Muster extension
+under `~/.vscode/extensions`, `~/.vscode-insiders/extensions`,
+`~/.cursor/extensions`, or `~/.windsurf/extensions`.
 
-The repo is also a Claude Code plugin (skill + MCP server preconfigured):
+#### Claude Code
+
+Easiest — install the repo as a plugin (registers the MCP server *and* the
+agent skill in one step). In a Claude Code session:
 
 ```
 /plugin marketplace add berwinsingh/one-click-terminal-setup-vscode
 /plugin install muster@muster
 ```
 
-VS Code (or Cursor) must be open with the Muster extension activated —
-tool calls proxy through the running extension so trust checks and run
-confirmations still apply. Stale endpoints from crashed sessions are
-detected and cleaned automatically.
+Or register just the MCP server from a clone of this repo:
+
+```bash
+claude mcp add muster -- node /path/to/one-click-terminal-setup-vscode/bin/muster-mcp.cjs
+```
+
+Verify with `/mcp` in a Claude Code session — the `muster` server should
+list six tools.
+
+#### Codex CLI
+
+```bash
+codex mcp add muster -- node /path/to/one-click-terminal-setup-vscode/bin/muster-mcp.cjs
+```
+
+Or add to `~/.codex/config.toml` directly:
+
+```toml
+[mcp_servers.muster]
+command = "node"
+args = ["/path/to/one-click-terminal-setup-vscode/bin/muster-mcp.cjs"]
+```
+
+Verify with `/mcp` inside a Codex session.
+
+#### Cursor
+
+Cursor's agent runs inside the editor, so with the Muster extension
+installed the stack is already local — but Cursor does not read VS Code's
+MCP provider API, so register the server in `.cursor/mcp.json` (per
+project) or `~/.cursor/mcp.json` (global):
+
+```json
+{
+  "mcpServers": {
+    "muster": {
+      "command": "node",
+      "args": ["/path/to/one-click-terminal-setup-vscode/bin/muster-mcp.cjs"]
+    }
+  }
+}
+```
+
+Then enable it under Settings → MCP. Point Cursor at
+[skills/muster/SKILL.md](skills/muster/SKILL.md) (e.g. from your rules) so
+the agent follows the read → run → poll → stop workflow.
+
+#### Troubleshooting
+
+- **"Muster extension IPC not available"** — VS Code/Cursor isn't open, or
+  the Muster extension isn't activated in that window. Open the workspace
+  and check the Muster icon appears in the Activity Bar, then retry.
+- **Launcher exits with "could not find Muster's MCP server"** — install
+  the Muster VS Code extension, or build from source
+  (`npm install && npm run compile`), or set `MUSTER_MCP_SERVER` to a
+  compiled `dist/mcp/server.js`.
+- **Wrong workspace answered** — the discovery lookup prefers the workspace
+  matching the client's cwd; set `MUSTER_WORKSPACE=/path/to/workspace` on
+  the server entry to pin it explicitly.
 
 ---
 

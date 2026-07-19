@@ -118,7 +118,7 @@ Agents inside VS Code and Cursor pick the server up automatically. Terminal agen
 claude mcp add muster -- node <path-to-repo>/bin/muster-mcp.cjs
 ```
 
-The repo doubles as a Claude Code plugin — see [FEATURES.md](FEATURES.md#terminal-agents-claude-code-codex) for the plugin install and Codex setup.
+The repo doubles as a Claude Code plugin — see [FEATURES.md](FEATURES.md#client-setup) for Claude Code, Codex CLI, and Cursor setup, plus troubleshooting.
 
 ## Development
 
