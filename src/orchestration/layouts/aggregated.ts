@@ -23,7 +23,7 @@ class AggregatedPty implements vscode.Pseudoterminal {
   ) {}
 
   open(): void {
-    this.writeEmitter.fire(`\r\n\x1b[36m[devstack]\x1b[0m Starting aggregated group: ${this.group.label}\r\n`);
+    this.writeEmitter.fire(`\r\n\x1b[36m[muster]\x1b[0m Starting aggregated group: ${this.group.label}\r\n`);
     for (const service of this.group.services) {
       this.spawnService(service);
     }
@@ -114,7 +114,7 @@ export function launchAggregatedGroup(
 ): vscode.Disposable {
   const pty = new AggregatedPty(group, tracker, workspaceFolder);
   const terminal = vscode.window.createTerminal({
-    name: `DevStack: ${group.label}`,
+    name: `Muster: ${group.label}`,
     pty,
   });
 

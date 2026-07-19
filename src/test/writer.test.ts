@@ -24,7 +24,7 @@ describe('config writer', () => {
       ],
     });
 
-    assert.equal(payload.$schema, '../schemas/devstack.schema.json');
+    assert.equal(payload.$schema, '../schemas/muster.schema.json');
     assert.doesNotThrow(() => WorkspaceConfigSchema.parse(payload));
     const groups = payload.groups as Array<{ id: string; services: Array<{ id: string }> }>;
     assert.match(groups[0]!.id, /^my-group/);

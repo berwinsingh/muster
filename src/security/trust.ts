@@ -5,7 +5,7 @@ export function assertWorkspaceTrusted(action: string): boolean {
     return true;
   }
   vscode.window.showWarningMessage(
-    `DevStack: Cannot ${action} in an untrusted workspace. Trust this workspace first.`
+    `Muster: Cannot ${action} in an untrusted workspace. Trust this workspace first.`
   );
   return false;
 }
@@ -26,7 +26,7 @@ export function validateGroupId(
 ): boolean {
   if (!knownIds.includes(groupId)) {
     vscode.window.showErrorMessage(
-      `DevStack: Unknown group "${groupId}". Commands must reference config-defined groups only.`
+      `Muster: Unknown group "${groupId}". Commands must reference config-defined groups only.`
     );
     return false;
   }
@@ -39,7 +39,7 @@ export function validateServiceId(
 ): boolean {
   if (!knownIds.includes(serviceId)) {
     vscode.window.showErrorMessage(
-      `DevStack: Unknown service "${serviceId}". Commands must reference config-defined services only.`
+      `Muster: Unknown service "${serviceId}". Commands must reference config-defined services only.`
     );
     return false;
   }

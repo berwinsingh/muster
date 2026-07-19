@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import { loadMergedConfig } from './config/loader';
-import { getDevStackWorkspaceFolder, hasWorkspaceConfigFile } from './config/workspaceFolder';
+import { getMusterWorkspaceFolder, hasWorkspaceConfigFile } from './config/workspaceFolder';
 import { startIpcServer } from './ipc/server';
 import { EventTracker } from './monitoring/eventTracker';
 import { registerMcpProvider } from './mcpProvider';
@@ -17,24 +17,24 @@ import {
 import { openConfigEditor } from './ui/configEditor';
 import { registerIssuesView } from './ui/issuesView';
 import { pickGroup, pickService, resolveGroupId } from './ui/quickPick';
-import { registerStatusBar, DevStackStatusBar } from './ui/statusBar';
-import { registerTreeView, DevStackTreeProvider, DevStackTreeItem, devStackHasGroups } from './ui/treeView';
+import { registerStatusBar, MusterStatusBar } from './ui/statusBar';
+import { registerTreeView, MusterTreeProvider, MusterTreeItem, musterHasGroups } from './ui/treeView';
 import { registerWelcomeCommands } from './ui/welcomeView';
 
 let tracker: ProcessTracker | undefined;
 let runner: GroupRunner | undefined;
-let statusBar: DevStackStatusBar | undefined;
-let treeProvider: DevStackTreeProvider | undefined;
+let statusBar: MusterStatusBar | undefined;
+let treeProvider: MusterTreeProvider | undefined;
 let eventTracker: EventTracker | undefined;
 let issuesView: ReturnType<typeof registerIssuesView> | undefined;
 
 let logChannel: vscode.OutputChannel | undefined;
 
-/** Internal diagnostic logger. Lazily creates the "DevStack" output channel. */
-export function devstackLog(message: string): void {
+/** Internal diagnostic logger. Lazily creates the "Muster" output channel. */
+export function musterLog(message: string): void {
   try {
     if (!logChannel) {
-      logChannel = vscode.window.createOutputChannel('DevStack');
+      logChannel = vscode.window.createOutputChannel('Muster');
     }
     logChannel.appendLine(`[${new Date().toISOString()}] ${message}`);
   } catch {
@@ -42,39 +42,39 @@ export function devstackLog(message: string): void {
   }
 }
 
-function devstackLogError(phase: string, err: unknown): void {
+function musterLogError(phase: string, err: unknown): void {
   const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err);
-  devstackLog(`ERROR during ${phase}: ${detail}`);
+  musterLog(`ERROR during ${phase}: ${detail}`);
   try {
-    void vscode.window.showErrorMessage(`DevStack: ${phase} failed — see "DevStack" output channel.`);
+    void vscode.window.showErrorMessage(`Muster: ${phase} failed — see "Muster" output channel.`);
   } catch {
     // ignore
   }
 }
 
 function onConfigChanged(): void {
-  void updateDevStackContext();
+  void updateMusterContext();
   treeProvider?.refresh();
   eventTracker?.refreshMonitoringConfig();
   issuesView?.refreshMeta();
 }
 
-async function updateDevStackContext(): Promise<void> {
-  const folder = getDevStackWorkspaceFolder();
+async function updateMusterContext(): Promise<void> {
+  const folder = getMusterWorkspaceFolder();
   const hasConfigFile = hasWorkspaceConfigFile(folder);
-  const hasGroups = devStackHasGroups();
+  const hasGroups = musterHasGroups();
 
-  await vscode.commands.executeCommand('setContext', 'devstack.hasConfigFile', hasConfigFile);
-  await vscode.commands.executeCommand('setContext', 'devstack.hasGroups', hasGroups);
+  await vscode.commands.executeCommand('setContext', 'muster.hasConfigFile', hasConfigFile);
+  await vscode.commands.executeCommand('setContext', 'muster.hasGroups', hasGroups);
 }
 
 function watchWorkspaceConfig(context: vscode.ExtensionContext): void {
-  const folder = getDevStackWorkspaceFolder();
+  const folder = getMusterWorkspaceFolder();
   if (!folder) {
     return;
   }
 
-  const pattern = new vscode.RelativePattern(folder, '.vscode/devstack.json');
+  const pattern = new vscode.RelativePattern(folder, '.vscode/muster.json');
   const watcher = vscode.workspace.createFileSystemWatcher(pattern);
   const refresh = (): void => onConfigChanged();
 
@@ -86,17 +86,17 @@ function watchWorkspaceConfig(context: vscode.ExtensionContext): void {
 
 function registerConfigCommands(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand('devstack.openConfig', () => openConfigEditor()),
-    vscode.commands.registerCommand('devstack.openVisualEditor', () =>
+    vscode.commands.registerCommand('muster.openConfig', () => openConfigEditor()),
+    vscode.commands.registerCommand('muster.openVisualEditor', () =>
       openVisualConfigEditor(context, onConfigChanged)
     ),
-    vscode.commands.registerCommand('devstack.createGroup', () =>
+    vscode.commands.registerCommand('muster.createGroup', () =>
       createGroupQuick(context, onConfigChanged)
     ),
-    vscode.commands.registerCommand('devstack.importExample', () =>
+    vscode.commands.registerCommand('muster.importExample', () =>
       importExampleConfig(context, onConfigChanged)
     ),
-    vscode.commands.registerCommand('devstack.editGroup', (item?: DevStackTreeItem) => {
+    vscode.commands.registerCommand('muster.editGroup', (item?: MusterTreeItem) => {
       const groupId = item?.groupId;
       if (groupId) {
         editGroupInWizard(context, groupId, onConfigChanged);
@@ -108,118 +108,118 @@ function registerConfigCommands(context: vscode.ExtensionContext): void {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-  devstackLog('activate start');
-  devstackLog(`extensionPath=${context.extensionPath}`);
-  devstackLog(`workspaceFolders=${vscode.workspace.workspaceFolders?.length ?? 0}`);
+  musterLog('activate start');
+  musterLog(`extensionPath=${context.extensionPath}`);
+  musterLog(`workspaceFolders=${vscode.workspace.workspaceFolders?.length ?? 0}`);
 
   // Keep the output channel alive for the session.
   if (logChannel) {
     context.subscriptions.push(logChannel);
   } else {
-    logChannel = vscode.window.createOutputChannel('DevStack');
+    logChannel = vscode.window.createOutputChannel('Muster');
     context.subscriptions.push(logChannel);
-    devstackLog('output channel created (late)');
+    musterLog('output channel created (late)');
   }
 
   try {
     registerWelcomeCommands(context);
-    devstackLog('step ok: registerWelcomeCommands');
+    musterLog('step ok: registerWelcomeCommands');
   } catch (err) {
-    devstackLogError('registerWelcomeCommands', err);
+    musterLogError('registerWelcomeCommands', err);
   }
 
   try {
     registerConfigCommands(context);
-    devstackLog('step ok: registerConfigCommands');
+    musterLog('step ok: registerConfigCommands');
   } catch (err) {
-    devstackLogError('registerConfigCommands', err);
+    musterLogError('registerConfigCommands', err);
   }
 
   try {
     tracker = new ProcessTracker();
     runner = new GroupRunner(tracker);
     context.subscriptions.push(tracker);
-    devstackLog('step ok: ProcessTracker/GroupRunner');
+    musterLog('step ok: ProcessTracker/GroupRunner');
   } catch (err) {
-    devstackLogError('ProcessTracker/GroupRunner', err);
+    musterLogError('ProcessTracker/GroupRunner', err);
   }
 
   try {
     if (tracker) {
       eventTracker = new EventTracker(tracker);
       context.subscriptions.push(eventTracker);
-      devstackLog('step ok: EventTracker');
+      musterLog('step ok: EventTracker');
     } else {
-      devstackLog('SKIP EventTracker: tracker missing');
+      musterLog('SKIP EventTracker: tracker missing');
     }
   } catch (err) {
-    devstackLogError('EventTracker', err);
+    musterLogError('EventTracker', err);
   }
 
   // Register sidebar views before optional services so panels always have providers.
   try {
     if (runner && tracker) {
       treeProvider = registerTreeView(context, runner, tracker, eventTracker);
-      devstackLog('step ok: registerTreeView (devstack.groups)');
+      musterLog('step ok: registerTreeView (muster.groups)');
     } else {
-      devstackLog('SKIP registerTreeView: runner/tracker missing');
+      musterLog('SKIP registerTreeView: runner/tracker missing');
     }
   } catch (err) {
-    devstackLogError('registerTreeView', err);
+    musterLogError('registerTreeView', err);
   }
 
   try {
     if (eventTracker && tracker) {
       issuesView = registerIssuesView(context, eventTracker, tracker);
-      devstackLog('step ok: registerIssuesView (devstack.issues)');
+      musterLog('step ok: registerIssuesView (muster.issues)');
     } else {
-      devstackLog('SKIP registerIssuesView: eventTracker/tracker missing');
+      musterLog('SKIP registerIssuesView: eventTracker/tracker missing');
     }
   } catch (err) {
-    devstackLogError('registerIssuesView', err);
+    musterLogError('registerIssuesView', err);
   }
 
   try {
     statusBar = registerStatusBar(context, runner!);
-    devstackLog('step ok: registerStatusBar');
+    musterLog('step ok: registerStatusBar');
   } catch (err) {
-    devstackLogError('registerStatusBar', err);
+    musterLogError('registerStatusBar', err);
   }
 
   try {
     registerMcpProvider(context);
-    devstackLog('step ok: registerMcpProvider');
+    musterLog('step ok: registerMcpProvider');
   } catch (err) {
-    devstackLog('MCP provider registration skipped (non-fatal): ' + (err instanceof Error ? err.message : String(err)));
+    musterLog('MCP provider registration skipped (non-fatal): ' + (err instanceof Error ? err.message : String(err)));
   }
 
   try {
     const ipc = startIpcServer(runner!, tracker!);
     context.subscriptions.push({ dispose: () => ipc.dispose() });
-    devstackLog('step ok: startIpcServer');
+    musterLog('step ok: startIpcServer');
   } catch (err) {
-    devstackLog('IPC server skipped (non-fatal): ' + (err instanceof Error ? err.message : String(err)));
+    musterLog('IPC server skipped (non-fatal): ' + (err instanceof Error ? err.message : String(err)));
   }
 
   try {
-    void updateDevStackContext();
-    devstackLog('step ok: updateDevStackContext (async)');
+    void updateMusterContext();
+    musterLog('step ok: updateMusterContext (async)');
   } catch (err) {
-    devstackLogError('updateDevStackContext', err);
+    musterLogError('updateMusterContext', err);
   }
 
   try {
     treeProvider?.refresh();
-    devstackLog('step ok: initial treeProvider.refresh');
+    musterLog('step ok: initial treeProvider.refresh');
   } catch (err) {
-    devstackLogError('treeProvider.refresh', err);
+    musterLogError('treeProvider.refresh', err);
   }
 
   try {
     watchWorkspaceConfig(context);
-    devstackLog('step ok: watchWorkspaceConfig');
+    musterLog('step ok: watchWorkspaceConfig');
   } catch (err) {
-    devstackLogError('watchWorkspaceConfig', err);
+    musterLogError('watchWorkspaceConfig', err);
   }
 
   try {
@@ -227,30 +227,30 @@ export function activate(context: vscode.ExtensionContext): void {
       statusBar?.update();
       treeProvider?.refresh();
     });
-    devstackLog('step ok: tracker.onDidChange wiring');
+    musterLog('step ok: tracker.onDidChange wiring');
   } catch (err) {
-    devstackLogError('tracker.onDidChange wiring', err);
+    musterLogError('tracker.onDidChange wiring', err);
   }
 
   // Log config snapshot so we can prove whether the file is being found/parsed.
   try {
-    const folder = getDevStackWorkspaceFolder();
-    const cfgPath = folder ? `${folder.uri.fsPath}/.vscode/devstack.json` : '<no workspace>';
+    const folder = getMusterWorkspaceFolder();
+    const cfgPath = folder ? `${folder.uri.fsPath}/.vscode/muster.json` : '<no workspace>';
     const hasFile = hasWorkspaceConfigFile(folder);
     let groupCount = -1;
     try {
       groupCount = loadMergedConfig(folder).groups.length;
     } catch (e) {
-      devstackLog(`config load threw: ${e instanceof Error ? e.message : String(e)}`);
+      musterLog(`config load threw: ${e instanceof Error ? e.message : String(e)}`);
     }
-    devstackLog(`config snapshot: folder=${folder?.name ?? 'none'} path=${cfgPath} hasFile=${hasFile} groups=${groupCount}`);
+    musterLog(`config snapshot: folder=${folder?.name ?? 'none'} path=${cfgPath} hasFile=${hasFile} groups=${groupCount}`);
   } catch (err) {
-    devstackLogError('config snapshot', err);
+    musterLogError('config snapshot', err);
   }
 
   try {
     context.subscriptions.push(
-      vscode.commands.registerCommand('devstack.runGroup', async (groupId?: string) => {
+      vscode.commands.registerCommand('muster.runGroup', async (groupId?: string) => {
         if (!assertWorkspaceTrusted('run server groups')) {
           return;
         }
@@ -260,7 +260,7 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
 
-        const config = loadMergedConfig(getDevStackWorkspaceFolder());
+        const config = loadMergedConfig(getMusterWorkspaceFolder());
         if (!validateGroupId(id, config.groups.map((g) => g.id))) {
           return;
         }
@@ -271,11 +271,11 @@ export function activate(context: vscode.ExtensionContext): void {
           statusBar!.update();
           treeProvider!.refresh();
         } catch (err) {
-          vscode.window.showErrorMessage(`DevStack: ${err}`);
+          vscode.window.showErrorMessage(`Muster: ${err}`);
         }
       }),
 
-      vscode.commands.registerCommand('devstack.stopGroup', async (groupId?: string) => {
+      vscode.commands.registerCommand('muster.stopGroup', async (groupId?: string) => {
         if (!assertWorkspaceTrusted('stop server groups')) {
           return;
         }
@@ -285,7 +285,7 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
 
-        const config = loadMergedConfig(getDevStackWorkspaceFolder());
+        const config = loadMergedConfig(getMusterWorkspaceFolder());
         if (!validateGroupId(id, config.groups.map((g) => g.id))) {
           return;
         }
@@ -295,11 +295,11 @@ export function activate(context: vscode.ExtensionContext): void {
           statusBar!.update();
           treeProvider!.refresh();
         } catch (err) {
-          vscode.window.showErrorMessage(`DevStack: ${err}`);
+          vscode.window.showErrorMessage(`Muster: ${err}`);
         }
       }),
 
-      vscode.commands.registerCommand('devstack.restartGroup', async (groupId?: string) => {
+      vscode.commands.registerCommand('muster.restartGroup', async (groupId?: string) => {
         if (!assertWorkspaceTrusted('restart server groups')) {
           return;
         }
@@ -309,7 +309,7 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
 
-        const config = loadMergedConfig(getDevStackWorkspaceFolder());
+        const config = loadMergedConfig(getMusterWorkspaceFolder());
         if (!validateGroupId(id, config.groups.map((g) => g.id))) {
           return;
         }
@@ -320,18 +320,18 @@ export function activate(context: vscode.ExtensionContext): void {
           statusBar!.update();
           treeProvider!.refresh();
         } catch (err) {
-          vscode.window.showErrorMessage(`DevStack: ${err}`);
+          vscode.window.showErrorMessage(`Muster: ${err}`);
         }
       }),
 
       vscode.commands.registerCommand(
-        'devstack.runService',
+        'muster.runService',
         async (groupId?: string, serviceId?: string) => {
           if (!assertWorkspaceTrusted('run services')) {
             return;
           }
 
-          const config = loadMergedConfig(getDevStackWorkspaceFolder());
+          const config = loadMergedConfig(getMusterWorkspaceFolder());
           let gid = groupId;
           let sid = serviceId;
 
@@ -362,46 +362,46 @@ export function activate(context: vscode.ExtensionContext): void {
             statusBar!.update();
             treeProvider!.refresh();
           } catch (err) {
-            vscode.window.showErrorMessage(`DevStack: ${err}`);
+            vscode.window.showErrorMessage(`Muster: ${err}`);
           }
         }
       ),
 
-      vscode.commands.registerCommand('devstack.refresh', () => {
+      vscode.commands.registerCommand('muster.refresh', () => {
         treeProvider?.refresh();
         eventTracker?.refreshMonitoringConfig();
         issuesView?.refreshMeta();
       }),
 
-      vscode.commands.registerCommand('devstack.runGroupFromTree', async (item: DevStackTreeItem) => {
-        await vscode.commands.executeCommand('devstack.runGroup', item.groupId);
+      vscode.commands.registerCommand('muster.runGroupFromTree', async (item: MusterTreeItem) => {
+        await vscode.commands.executeCommand('muster.runGroup', item.groupId);
       }),
 
-      vscode.commands.registerCommand('devstack.stopGroupFromTree', async (item: DevStackTreeItem) => {
-        await vscode.commands.executeCommand('devstack.stopGroup', item.groupId);
+      vscode.commands.registerCommand('muster.stopGroupFromTree', async (item: MusterTreeItem) => {
+        await vscode.commands.executeCommand('muster.stopGroup', item.groupId);
       }),
 
       vscode.commands.registerCommand(
-        'devstack.restartGroupFromTree',
-        async (item: DevStackTreeItem) => {
-          await vscode.commands.executeCommand('devstack.restartGroup', item.groupId);
+        'muster.restartGroupFromTree',
+        async (item: MusterTreeItem) => {
+          await vscode.commands.executeCommand('muster.restartGroup', item.groupId);
         }
       ),
 
       vscode.commands.registerCommand(
-        'devstack.runServiceFromTree',
-        async (item: DevStackTreeItem) => {
+        'muster.runServiceFromTree',
+        async (item: MusterTreeItem) => {
           const serviceId = item.nodeId.split(':')[1];
-          await vscode.commands.executeCommand('devstack.runService', item.groupId, serviceId);
+          await vscode.commands.executeCommand('muster.runService', item.groupId, serviceId);
         }
       )
     );
-    devstackLog('step ok: register runtime commands');
+    musterLog('step ok: register runtime commands');
   } catch (err) {
-    devstackLogError('register runtime commands', err);
+    musterLogError('register runtime commands', err);
   }
 
-  devstackLog('activate complete');
+  musterLog('activate complete');
 }
 
 export function deactivate(): void {

@@ -1,9 +1,9 @@
 {
-  "name": "devstack",
-  "displayName": "DevStack",
+  "name": "muster",
+  "displayName": "Muster",
   "description": "One-click dev server group orchestration with MCP agent integration",
   "version": "0.1.10",
-  "publisher": "devstack",
+  "publisher": "muster",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -18,122 +18,122 @@
   "icon": "media/icon.png",
   "activationEvents": [
     "onStartupFinished",
-    "workspaceContains:.vscode/devstack.json",
-    "onView:devstack.groups",
-    "onView:devstack.issues",
-    "onCommand:devstack.createGroup",
-    "onCommand:devstack.openVisualEditor",
-    "onCommand:devstack.importExample",
-    "onCommand:devstack.openConfig"
+    "workspaceContains:.vscode/muster.json",
+    "onView:muster.groups",
+    "onView:muster.issues",
+    "onCommand:muster.createGroup",
+    "onCommand:muster.openVisualEditor",
+    "onCommand:muster.importExample",
+    "onCommand:muster.openConfig"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "devstack.runGroup",
+        "command": "muster.runGroup",
         "title": "Run Group",
-        "category": "DevStack"
+        "category": "Muster"
       },
       {
-        "command": "devstack.stopGroup",
+        "command": "muster.stopGroup",
         "title": "Stop Group",
-        "category": "DevStack"
+        "category": "Muster"
       },
       {
-        "command": "devstack.restartGroup",
+        "command": "muster.restartGroup",
         "title": "Restart Group",
-        "category": "DevStack"
+        "category": "Muster"
       },
       {
-        "command": "devstack.runService",
+        "command": "muster.runService",
         "title": "Run Service",
-        "category": "DevStack"
+        "category": "Muster"
       },
       {
-        "command": "devstack.openConfig",
+        "command": "muster.openConfig",
         "title": "Open Config",
-        "category": "DevStack"
+        "category": "Muster"
       },
       {
-        "command": "devstack.refresh",
+        "command": "muster.refresh",
         "title": "Refresh",
-        "category": "DevStack",
+        "category": "Muster",
         "icon": "$(refresh)"
       },
       {
-        "command": "devstack.runGroupFromTree",
+        "command": "muster.runGroupFromTree",
         "title": "Run Group",
-        "category": "DevStack",
+        "category": "Muster",
         "icon": "$(play)"
       },
       {
-        "command": "devstack.stopGroupFromTree",
+        "command": "muster.stopGroupFromTree",
         "title": "Stop Group",
-        "category": "DevStack",
+        "category": "Muster",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "devstack.restartGroupFromTree",
+        "command": "muster.restartGroupFromTree",
         "title": "Restart Group",
-        "category": "DevStack",
+        "category": "Muster",
         "icon": "$(debug-restart)"
       },
       {
-        "command": "devstack.runServiceFromTree",
+        "command": "muster.runServiceFromTree",
         "title": "Run Service",
-        "category": "DevStack",
+        "category": "Muster",
         "icon": "$(play)"
       },
       {
-        "command": "devstack.openVisualEditor",
+        "command": "muster.openVisualEditor",
         "title": "Configure",
-        "category": "DevStack",
+        "category": "Muster",
         "icon": "$(edit)"
       },
       {
-        "command": "devstack.createGroup",
+        "command": "muster.createGroup",
         "title": "Create Group",
-        "category": "DevStack",
+        "category": "Muster",
         "icon": "$(add)"
       },
       {
-        "command": "devstack.importExample",
+        "command": "muster.importExample",
         "title": "Import Example",
-        "category": "DevStack",
+        "category": "Muster",
         "icon": "$(cloud-download)"
       },
       {
-        "command": "devstack.editGroup",
+        "command": "muster.editGroup",
         "title": "Edit Group",
-        "category": "DevStack",
+        "category": "Muster",
         "icon": "$(edit)"
       }
     ],
     "viewsWelcome": [
       {
-        "view": "devstack.groups",
-        "contents": "No server groups configured yet.\nUse the **+** (Create Group) and pencil (Configure) icons in the title bar.\n[Create Group](command:devstack.createGroup)\n[Import Example](command:devstack.importExample)\n[Open Visual Editor](command:devstack.openVisualEditor)",
-        "when": "!devstack.hasConfigFile && !devstack.hasGroups"
+        "view": "muster.groups",
+        "contents": "No server groups configured yet.\nUse the **+** (Create Group) and pencil (Configure) icons in the title bar.\n[Create Group](command:muster.createGroup)\n[Import Example](command:muster.importExample)\n[Open Visual Editor](command:muster.openVisualEditor)",
+        "when": "!muster.hasConfigFile && !muster.hasGroups"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "devstack",
-          "title": "DevStack",
-          "icon": "media/devstack.svg"
+          "id": "muster",
+          "title": "Muster",
+          "icon": "media/muster.svg"
         }
       ]
     },
     "views": {
-      "devstack": [
+      "muster": [
         {
-          "id": "devstack.groups",
+          "id": "muster.groups",
           "name": "Server Groups"
         },
         {
           "type": "webview",
-          "id": "devstack.issues",
+          "id": "muster.issues",
           "name": "Events"
         }
       ]
@@ -141,126 +141,126 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "devstack.runGroup",
+          "command": "muster.runGroup",
           "when": "true"
         },
         {
-          "command": "devstack.stopGroup",
+          "command": "muster.stopGroup",
           "when": "true"
         },
         {
-          "command": "devstack.restartGroup",
+          "command": "muster.restartGroup",
           "when": "true"
         },
         {
-          "command": "devstack.runService",
+          "command": "muster.runService",
           "when": "true"
         },
         {
-          "command": "devstack.openConfig",
+          "command": "muster.openConfig",
           "when": "true"
         },
         {
-          "command": "devstack.refresh",
+          "command": "muster.refresh",
           "when": "true"
         },
         {
-          "command": "devstack.openVisualEditor",
+          "command": "muster.openVisualEditor",
           "when": "true"
         },
         {
-          "command": "devstack.createGroup",
+          "command": "muster.createGroup",
           "when": "true"
         },
         {
-          "command": "devstack.importExample",
+          "command": "muster.importExample",
           "when": "true"
         },
         {
-          "command": "devstack.runGroupFromTree",
+          "command": "muster.runGroupFromTree",
           "when": "false"
         },
         {
-          "command": "devstack.stopGroupFromTree",
+          "command": "muster.stopGroupFromTree",
           "when": "false"
         },
         {
-          "command": "devstack.restartGroupFromTree",
+          "command": "muster.restartGroupFromTree",
           "when": "false"
         },
         {
-          "command": "devstack.runServiceFromTree",
+          "command": "muster.runServiceFromTree",
           "when": "false"
         },
         {
-          "command": "devstack.editGroup",
+          "command": "muster.editGroup",
           "when": "false"
         }
       ],
       "view/title": [
         {
-          "command": "devstack.createGroup",
-          "when": "view == devstack.groups",
+          "command": "muster.createGroup",
+          "when": "view == muster.groups",
           "group": "navigation@1"
         },
         {
-          "command": "devstack.openVisualEditor",
-          "when": "view == devstack.groups",
+          "command": "muster.openVisualEditor",
+          "when": "view == muster.groups",
           "group": "navigation@2"
         },
         {
-          "command": "devstack.refresh",
-          "when": "view == devstack.groups",
+          "command": "muster.refresh",
+          "when": "view == muster.groups",
           "group": "navigation@3"
         }
       ],
       "view/item/context": [
         {
-          "command": "devstack.openVisualEditor",
-          "when": "view == devstack.groups && viewItem == error",
+          "command": "muster.openVisualEditor",
+          "when": "view == muster.groups && viewItem == error",
           "group": "inline@1"
         },
         {
-          "command": "devstack.runGroupFromTree",
-          "when": "view == devstack.groups && viewItem == group",
+          "command": "muster.runGroupFromTree",
+          "when": "view == muster.groups && viewItem == group",
           "group": "inline@1"
         },
         {
-          "command": "devstack.stopGroupFromTree",
-          "when": "view == devstack.groups && viewItem == group",
+          "command": "muster.stopGroupFromTree",
+          "when": "view == muster.groups && viewItem == group",
           "group": "inline@2"
         },
         {
-          "command": "devstack.restartGroupFromTree",
-          "when": "view == devstack.groups && viewItem == group",
+          "command": "muster.restartGroupFromTree",
+          "when": "view == muster.groups && viewItem == group",
           "group": "inline@3"
         },
         {
-          "command": "devstack.runServiceFromTree",
-          "when": "view == devstack.groups && viewItem == service",
+          "command": "muster.runServiceFromTree",
+          "when": "view == muster.groups && viewItem == service",
           "group": "inline@1"
         },
         {
-          "command": "devstack.editGroup",
-          "when": "view == devstack.groups && viewItem == group",
+          "command": "muster.editGroup",
+          "when": "view == muster.groups && viewItem == group",
           "group": "1_edit@1"
         }
       ]
     },
     "configuration": {
-      "title": "DevStack",
+      "title": "Muster",
       "properties": {
-        "devstack.defaultGroup": {
+        "muster.defaultGroup": {
           "type": "string",
           "default": "",
           "description": "Default server group id for status bar toggle"
         },
-        "devstack.keepExistingTerminals": {
+        "muster.keepExistingTerminals": {
           "type": "boolean",
           "default": true,
           "description": "Do not close existing terminals when starting a group"
         },
-        "devstack.allowExternalCwd": {
+        "muster.allowExternalCwd": {
           "type": "boolean",
           "default": false,
           "description": "Allow service cwd outside the workspace folder"

@@ -39,10 +39,10 @@ vscodeMock.EventEmitter = class {
 
 describe('EventTracker constructor resilience', () => {
   it('does not throw when workspace config cwd is outside workspace', () => {
-    const root = mkdtempSync(join(tmpdir(), 'devstack-event-tracker-'));
+    const root = mkdtempSync(join(tmpdir(), 'muster-event-tracker-'));
     mkdirSync(join(root, '.vscode'), { recursive: true });
     writeFileSync(
-      join(root, '.vscode', 'devstack.json'),
+      join(root, '.vscode', 'muster.json'),
       JSON.stringify(
         {
           version: '1.0.0',

@@ -20,7 +20,7 @@ import {
 } from './tools';
 
 const server = new McpServer({
-  name: 'devstack',
+  name: 'muster',
   version: '0.1.0',
 });
 
@@ -28,7 +28,7 @@ server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: 'list_server_groups',
-      description: 'List all merged DevStack server groups and their services',
+      description: 'List all merged Muster server groups and their services',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true },
     },
@@ -75,7 +75,7 @@ server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'describe_config',
-      description: 'Return DevStack config file paths and schema location',
+      description: 'Return Muster config file paths and schema location',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true },
     },
@@ -131,7 +131,7 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
 server.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
   prompts: [
     {
-      name: 'devstack/start',
+      name: 'muster/start',
       description: 'Start the dev stack group best suited for this workspace',
       arguments: [
         {
@@ -142,8 +142,8 @@ server.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
       ],
     },
     {
-      name: 'devstack/status',
-      description: 'Show which DevStack services are running',
+      name: 'muster/status',
+      description: 'Show which Muster services are running',
       arguments: [],
     },
   ],
@@ -152,9 +152,9 @@ server.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
 server.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
   resources: [
     {
-      uri: 'devstack://config/workspace',
-      name: 'Workspace DevStack Config',
-      description: 'Live workspace devstack.json paths and merged groups summary',
+      uri: 'muster://config/workspace',
+      name: 'Workspace Muster Config',
+      description: 'Live workspace muster.json paths and merged groups summary',
       mimeType: 'application/json',
     },
   ],
@@ -163,7 +163,7 @@ server.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
 server.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const { uri } = request.params;
 
-  if (uri === 'devstack://config/workspace') {
+  if (uri === 'muster://config/workspace') {
     const [groups, describe] = await Promise.all([listServerGroups(), describeConfig()]);
     return {
       contents: [
@@ -176,7 +176,7 @@ server.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     };
   }
 
-  const logsMatch = uri.match(/^devstack:\/\/logs\/([^/]+)\/([^/]+)$/);
+  const logsMatch = uri.match(/^muster:\/\/logs\/([^/]+)\/([^/]+)$/);
   if (logsMatch) {
     const [, groupId, serviceId] = logsMatch;
     const logs = await getServiceLogs(groupId, serviceId);

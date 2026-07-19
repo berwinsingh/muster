@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate DevStack extension icons with aspect-ratio preserved center crop."""
+"""Regenerate Muster extension icons with aspect-ratio preserved center crop."""
 
 from __future__ import annotations
 

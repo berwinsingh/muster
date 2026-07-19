@@ -10,8 +10,8 @@ export function getWelcomeContent(): string {
   return [
     'No server groups configured yet.',
     'Use the **+** (Create Group) and pencil (Configure) icons in the title bar.',
-    '[Create Group](command:devstack.createGroup)',
-    '[Import Example](command:devstack.importExample)',
-    '[Open Visual Editor](command:devstack.openVisualEditor)',
+    '[Create Group](command:muster.createGroup)',
+    '[Import Example](command:muster.importExample)',
+    '[Open Visual Editor](command:muster.openVisualEditor)',
   ].join('\n');
 }

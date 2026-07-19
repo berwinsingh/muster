@@ -36,7 +36,7 @@ export class GroupRunner {
 
     try {
       const keepExisting = group.keepExistingTerminals ??
-        vscode.workspace.getConfiguration('devstack').get<boolean>('keepExistingTerminals', true);
+        vscode.workspace.getConfiguration('muster').get<boolean>('keepExistingTerminals', true);
 
       if (!keepExisting) {
         // Only dispose terminals tracked by this group, not all workspace terminals

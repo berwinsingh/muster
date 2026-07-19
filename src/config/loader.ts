@@ -42,7 +42,7 @@ export function substituteVariables(
 }
 
 function validateCwd(cwd: string, workspaceFolder: vscode.WorkspaceFolder | undefined): void {
-  const config = vscode.workspace.getConfiguration('devstack');
+  const config = vscode.workspace.getConfiguration('muster');
   const allowExternal = config.get<boolean>('allowExternalCwd', false);
   if (allowExternal) {
     return;
@@ -55,7 +55,7 @@ function validateCwd(cwd: string, workspaceFolder: vscode.WorkspaceFolder | unde
   const normalizedFolder = path.resolve(folder);
   if (!resolved.startsWith(normalizedFolder)) {
     throw new Error(
-      `Service cwd "${cwd}" is outside workspace. Set devstack.allowExternalCwd to allow.`
+      `Service cwd "${cwd}" is outside workspace. Set muster.allowExternalCwd to allow.`
     );
   }
 }

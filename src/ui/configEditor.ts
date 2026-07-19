@@ -4,7 +4,7 @@ import { getWorkspaceConfigPath } from '../config/paths';
 export async function openConfigEditor(): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
-    vscode.window.showWarningMessage('Open a workspace folder to edit DevStack config.');
+    vscode.window.showWarningMessage('Open a workspace folder to edit Muster config.');
     return;
   }
 

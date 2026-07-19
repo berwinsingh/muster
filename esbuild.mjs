@@ -28,7 +28,7 @@ function findTestEntries() {
 async function buildTests() {
   const entryPoints = findTestEntries();
   if (!entryPoints.length) {
-    console.log('[devstack] no test files found');
+    console.log('[muster] no test files found');
     return;
   }
 
@@ -42,7 +42,7 @@ async function buildTests() {
 
   await testCtx.rebuild();
   await testCtx.dispose();
-  console.log('[devstack] test build complete');
+  console.log('[muster] test build complete');
 }
 
 if (testOnly) {
@@ -65,10 +65,10 @@ if (testOnly) {
 
   if (watch) {
     await Promise.all([extensionCtx.watch(), mcpCtx.watch()]);
-    console.log('[devstack] watching...');
+    console.log('[muster] watching...');
   } else {
     await Promise.all([extensionCtx.rebuild(), mcpCtx.rebuild()]);
     await Promise.all([extensionCtx.dispose(), mcpCtx.dispose()]);
-    console.log('[devstack] build complete');
+    console.log('[muster] build complete');
   }
 }

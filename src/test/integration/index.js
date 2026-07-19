@@ -26,37 +26,37 @@ function waitForTerminal(name, timeoutMs = 10000) {
 
 async function run() {
   console.log('[integration] locating extension');
-  const extension = vscode.extensions.getExtension('devstack.devstack');
-  assert.ok(extension, 'DevStack extension should be discoverable in the Extension Host');
+  const extension = vscode.extensions.getExtension('muster.muster');
+  assert.ok(extension, 'Muster extension should be discoverable in the Extension Host');
 
   const workspaceFolder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
   assert.ok(workspaceFolder, 'Smoke test workspace should be open');
   assert.equal(vscode.workspace.isTrusted, true, 'Smoke test workspace should be trusted');
-  await vscode.workspace.fs.stat(vscode.Uri.joinPath(workspaceFolder.uri, '.vscode', 'devstack.json'));
+  await vscode.workspace.fs.stat(vscode.Uri.joinPath(workspaceFolder.uri, '.vscode', 'muster.json'));
 
   console.log('[integration] activating extension');
   await extension.activate();
-  assert.equal(extension.isActive, true, 'DevStack extension should activate');
+  assert.equal(extension.isActive, true, 'Muster extension should activate');
 
   const commands = await vscode.commands.getCommands(true);
-  for (const command of ['devstack.runGroup', 'devstack.stopGroup', 'devstack.refresh']) {
+  for (const command of ['muster.runGroup', 'muster.stopGroup', 'muster.refresh']) {
     assert.ok(commands.includes(command), `${command} should be registered`);
   }
 
-  console.log('[integration] opening DevStack sidebar views');
-  await vscode.commands.executeCommand('workbench.view.extension.devstack');
-  await vscode.commands.executeCommand('devstack.groups.focus');
-  await vscode.commands.executeCommand('devstack.issues.focus');
+  console.log('[integration] opening Muster sidebar views');
+  await vscode.commands.executeCommand('workbench.view.extension.muster');
+  await vscode.commands.executeCommand('muster.groups.focus');
+  await vscode.commands.executeCommand('muster.issues.focus');
 
   console.log('[integration] running smoke group');
-  const terminalOpened = waitForTerminal('DevStack: Smoke Logger');
+  const terminalOpened = waitForTerminal('Muster: Smoke Logger');
   try {
-    await vscode.commands.executeCommand('devstack.runGroup', 'smoke');
+    await vscode.commands.executeCommand('muster.runGroup', 'smoke');
     await terminalOpened;
     await delay(1500);
-    await vscode.commands.executeCommand('devstack.refresh');
+    await vscode.commands.executeCommand('muster.refresh');
   } finally {
-    await vscode.commands.executeCommand('devstack.stopGroup', 'smoke');
+    await vscode.commands.executeCommand('muster.stopGroup', 'smoke');
   }
 
   console.log('[integration] smoke test complete');

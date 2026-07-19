@@ -74,7 +74,7 @@ export async function launchDedicatedService(
   tracker.setStatus(group.id, service.id, 'starting');
 
   const terminalOptions: vscode.TerminalOptions = {
-    name: `DevStack: ${service.name}`,
+    name: `Muster: ${service.name}`,
     cwd: service.cwd ?? workspaceFolder?.uri.fsPath,
     env: buildServiceEnv(service),
   };

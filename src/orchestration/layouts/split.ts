@@ -30,7 +30,7 @@ export async function launchSplitGroup(
     tracker.setStatus(group.id, service.id, 'starting');
 
     const terminal = vscode.window.createTerminal({
-      name: `DevStack: ${service.name}`,
+      name: `Muster: ${service.name}`,
       cwd: service.cwd ?? workspaceFolder?.uri.fsPath,
       env: buildServiceEnv(service),
       location: { viewColumn: column, preserveFocus: false },

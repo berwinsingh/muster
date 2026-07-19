@@ -1,14 +1,14 @@
 ---
-name: devstack
+name: muster
 description: >-
   Start, stop, and monitor grouped dev servers (uvicorn, pnpm, celery, go, etc.)
-  via the DevStack VS Code extension MCP tools. Use when the user asks to run dev
+  via the Muster VS Code extension MCP tools. Use when the user asks to run dev
   servers, start the stack, spin up backend/frontend, or manage server groups.
 ---
 
-# DevStack Agent Skill
+# Muster Agent Skill
 
-Use the DevStack MCP server tools to orchestrate dev server groups defined in `.vscode/devstack.json` and `~/.config/devstack/profiles.json`.
+Use the Muster MCP server tools to orchestrate dev server groups defined in `.vscode/muster.json` and `~/.config/muster/profiles.json`.
 
 ## When to use
 
@@ -20,7 +20,7 @@ Use the DevStack MCP server tools to orchestrate dev server groups defined in `.
 
 - Do not use generic `execute_command` or arbitrary shell for server orchestration
 - Do not modify `tasks.json` or `launch.json` unless the user explicitly requests it
-- Do not suggest commands not defined in DevStack config
+- Do not suggest commands not defined in Muster config
 
 ## Workflow
 
@@ -52,17 +52,17 @@ restart_server_group({ "groupId": "full-stack" })
 
 | File | Purpose |
 |------|---------|
-| `.vscode/devstack.json` | Workspace server groups (commit to repo) |
-| `~/.config/devstack/profiles.json` | User-global reusable profiles |
-| `schemas/devstack.schema.json` | JSON Schema for validation |
+| `.vscode/muster.json` | Workspace server groups (commit to repo) |
+| `~/.config/muster/profiles.json` | User-global reusable profiles |
+| `schemas/muster.schema.json` | JSON Schema for validation |
 
 ## Scaffolding config
 
-If no config exists, create `.vscode/devstack.json`:
+If no config exists, create `.vscode/muster.json`:
 
 ```json
 {
-  "$schema": "../schemas/devstack.schema.json",
+  "$schema": "../schemas/muster.schema.json",
   "version": "1.0.0",
   "groups": [
     {
@@ -88,14 +88,14 @@ If no config exists, create `.vscode/devstack.json`:
 If MCP is unavailable, ask the user to run:
 
 ```
-DevStack: Run Group
+Muster: Run Group
 ```
 
-Or invoke `devstack.runGroup` with `{ "groupId": "full-stack" }` via a generic command bridge.
+Or invoke `muster.runGroup` with `{ "groupId": "full-stack" }` via a generic command bridge.
 
 ## Security
 
-- Only use DevStack MCP tools — never arbitrary shell execution
+- Only use Muster MCP tools — never arbitrary shell execution
 - Write tools require workspace trust and user confirmation
 - Group and service IDs must exist in config
 

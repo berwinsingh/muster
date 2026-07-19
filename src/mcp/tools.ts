@@ -1,9 +1,9 @@
-const IPC_PORT = process.env.DEVSTACK_IPC_PORT ?? '';
+const IPC_PORT = process.env.MUSTER_IPC_PORT ?? '';
 
 async function ipcFetch(path: string, method = 'GET', body?: Record<string, string>): Promise<unknown> {
   if (!IPC_PORT) {
     throw new Error(
-      'DevStack extension IPC not available. Ensure the DevStack extension is activated in VS Code.'
+      'Muster extension IPC not available. Ensure the Muster extension is activated in VS Code.'
     );
   }
 

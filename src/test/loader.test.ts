@@ -9,13 +9,13 @@ import { normalizeConfigIds, slugifyId } from '../config/slugify';
 
 describe('config loader', () => {
   it('merges workspace groups with $schema present', () => {
-    const root = mkdtempSync(join(tmpdir(), 'devstack-loader-'));
+    const root = mkdtempSync(join(tmpdir(), 'muster-loader-'));
     mkdirSync(join(root, '.vscode'), { recursive: true });
     writeFileSync(
-      join(root, '.vscode', 'devstack.json'),
+      join(root, '.vscode', 'muster.json'),
       JSON.stringify(
         {
-          $schema: '../schemas/devstack.schema.json',
+          $schema: '../schemas/muster.schema.json',
           version: '1.0.0',
           groups: [
             {
@@ -35,7 +35,7 @@ describe('config loader', () => {
     const config = loadMergedConfigFromPaths(root, true);
     assert.equal(config.groups.length, 1);
     assert.equal(config.groups[0]?.id, 'dev');
-    assert.equal(config.sources.workspaceConfigPath?.endsWith('devstack.json'), true);
+    assert.equal(config.sources.workspaceConfigPath?.endsWith('muster.json'), true);
   });
 
   it('rejects invalid workspace config at parse time', () => {
