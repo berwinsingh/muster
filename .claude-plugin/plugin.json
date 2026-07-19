@@ -6,8 +6,8 @@
     "name": "Berwin Singh",
     "url": "https://github.com/berwinsingh"
   },
-  "homepage": "https://github.com/berwinsingh/one-click-terminal-setup-vscode",
-  "repository": "https://github.com/berwinsingh/one-click-terminal-setup-vscode",
+  "homepage": "https://github.com/berwinsingh/muster",
+  "repository": "https://github.com/berwinsingh/muster",
   "license": "MIT",
   "keywords": ["dev-server", "orchestration", "mcp", "process-manager"]
 }
