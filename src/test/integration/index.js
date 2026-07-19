@@ -150,6 +150,10 @@ async function run() {
   try {
     await vscode.commands.executeCommand('muster.runGroup', 'smoke');
     await terminalOpened;
+    assert.ok(
+      vscode.window.terminals.some((terminal) => terminal.name === 'Muster'),
+      'Muster orchestrator (narrator) terminal should open during a group run'
+    );
     await delay(1500);
     await vscode.commands.executeCommand('muster.refresh');
   } finally {

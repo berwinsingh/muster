@@ -274,6 +274,11 @@
           "default": true,
           "description": "Do not close existing terminals when starting a group"
         },
+        "muster.orchestratorTerminal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the Muster orchestrator terminal that narrates group startup: launches, ready checks, dependency order, and final status"
+        },
         "muster.allowExternalCwd": {
           "type": "boolean",
           "default": false,
@@ -289,7 +294,7 @@
     "prepare-icons": "node scripts/prepare-icons.mjs",
     "package": "npm run prepare-icons && npm run compile && vsce package",
     "test": "npm run compile:test && node --require ./src/test/vscode-shim.cjs --test dist-test/**/*.test.js",
-    "test:integration": "node scripts/run-integration-tests.cjs",
+    "test:integration": "npm run compile && node scripts/run-integration-tests.cjs",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {

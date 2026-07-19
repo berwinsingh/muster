@@ -4,13 +4,33 @@ import { GroupConfig, ServiceConfig } from '../config/schema';
 import { launchAggregatedGroup } from './layouts/aggregated';
 import { launchDedicatedService } from './layouts/dedicated';
 import { launchSplitOrDedicated } from './layouts/split';
+import { MusterNarrator } from './narrator';
+import {
+  formatAggregatedHandoff,
+  formatAllRunning,
+  formatDelay,
+  formatFailure,
+  formatHealthOk,
+  formatPartial,
+  formatReadyMatched,
+  formatRunHeader,
+  formatServiceLaunch,
+  formatStarting,
+  formatStopped,
+  formatStopping,
+  formatWaitingReady,
+} from './narratorFormat';
 import { ProcessTracker } from './processTracker';
+import { buildServiceCommand } from './shell';
 import { wait, waitForServiceReady } from './readiness';
 
 export class GroupRunner {
   private readonly runningGroups = new Set<string>();
 
-  constructor(private readonly tracker: ProcessTracker) {}
+  constructor(
+    private readonly tracker: ProcessTracker,
+    private readonly narrator?: MusterNarrator
+  ) {}
 
   getWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
     return vscode.workspace.workspaceFolders?.[0];
@@ -34,6 +54,13 @@ export class GroupRunner {
 
     this.runningGroups.add(groupId);
 
+    this.narrator?.writeGap();
+    this.narrator?.writeLine(formatRunHeader(groupId));
+    this.narrator?.writeLine(
+      formatStarting(group.services.length, group.layout, group.order)
+    );
+    this.narrator?.reveal();
+
     try {
       const keepExisting = group.keepExistingTerminals ??
         vscode.workspace.getConfiguration('muster').get<boolean>('keepExistingTerminals', true);
@@ -45,6 +72,7 @@ export class GroupRunner {
 
       if (group.layout === 'aggregated') {
         launchAggregatedGroup(group, this.tracker, this.getWorkspaceFolder());
+        this.narrator?.writeLine(formatAggregatedHandoff(groupId, group.label));
         return;
       }
 
@@ -55,14 +83,33 @@ export class GroupRunner {
           this.getWorkspaceFolder(),
           (svc) => this.runSingleService(group, svc)
         );
-        return;
+      } else {
+        await this.runServicesInOrder(group);
       }
 
-      await this.runServicesInOrder(group);
+      this.narrateFinalStatus(group);
     } catch (err) {
       this.runningGroups.delete(groupId);
+      this.narrator?.writeLine(formatFailure(groupId, String(err)));
       throw err;
     }
+  }
+
+  private narrateFinalStatus(group: GroupConfig): void {
+    if (!this.narrator) {
+      return;
+    }
+    const status = this.tracker.getGroupStatus(
+      group.id,
+      group.services.map((s) => s.id)
+    );
+    const total = group.services.length;
+    const running = Object.values(status.services).filter((s) => s === 'running').length;
+    this.narrator.writeLine(
+      running === total
+        ? formatAllRunning(group.id, running, total)
+        : formatPartial(group.id, running, total)
+    );
   }
 
   private async runServicesInOrder(group: GroupConfig): Promise<void> {
@@ -81,6 +128,7 @@ export class GroupRunner {
       await Promise.all(
         pending.map(async (service) => {
           if (service.delayMs) {
+            this.narrator?.writeLine(formatDelay(service.id, service.delayMs));
             await wait(service.delayMs);
           }
           await this.runSingleService(group, service);
@@ -119,7 +167,18 @@ export class GroupRunner {
   }
 
   private async runSingleService(group: GroupConfig, service: ServiceConfig): Promise<void> {
+    this.narrator?.writeLine(formatServiceLaunch(service.id, buildServiceCommand(service)));
     await launchDedicatedService(group, service, this.tracker, this.getWorkspaceFolder());
+
+    const waitingFor = [
+      service.readyPattern ? 'ready pattern' : null,
+      service.healthUrl ? 'health check' : null,
+    ]
+      .filter(Boolean)
+      .join(' + ');
+    if (waitingFor) {
+      this.narrator?.writeLine(formatWaitingReady(service.id, waitingFor));
+    }
 
     try {
       await waitForServiceReady(
@@ -130,7 +189,15 @@ export class GroupRunner {
         service.healthUrl,
         group.order === 'sequence' ? service.delayMs : undefined
       );
+      const hasDependents = group.services.some((s) => s.dependsOn?.includes(service.id));
+      if (service.readyPattern) {
+        this.narrator?.writeLine(formatReadyMatched(service.id, hasDependents));
+      }
+      if (service.healthUrl) {
+        this.narrator?.writeLine(formatHealthOk(service.id));
+      }
     } catch (err) {
+      this.narrator?.writeLine(formatFailure(service.id, String(err)));
       vscode.window.showErrorMessage(String(err));
     }
   }
@@ -143,7 +210,9 @@ export class GroupRunner {
     }
 
     const serviceIds = group.services.map((s) => s.id);
+    this.narrator?.writeLine(formatStopping(groupId));
     await this.tracker.stopGroup(groupId, serviceIds);
+    this.narrator?.writeLine(formatStopped(groupId));
 
     if (removeFromRunning) {
       this.runningGroups.delete(groupId);
