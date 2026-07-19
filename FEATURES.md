@@ -103,6 +103,29 @@ Install or reference `skills/muster/SKILL.md` so agents:
 - Follow the read → run → poll → stop workflow
 - Respect workspace trust and config-defined IDs only
 
+### Terminal agents (Claude Code, Codex)
+
+The extension writes its IPC endpoint to `~/.config/muster/ipc/` on startup,
+so MCP clients outside VS Code can find it. `bin/muster-mcp.cjs` locates the
+compiled MCP server (repo build or installed extension) and launches it:
+
+```bash
+claude mcp add muster -- node <path-to-repo>/bin/muster-mcp.cjs
+codex mcp add muster -- node <path-to-repo>/bin/muster-mcp.cjs
+```
+
+The repo is also a Claude Code plugin (skill + MCP server preconfigured):
+
+```
+/plugin marketplace add berwinsingh/one-click-terminal-setup-vscode
+/plugin install muster@muster
+```
+
+VS Code (or Cursor) must be open with the Muster extension activated —
+tool calls proxy through the running extension so trust checks and run
+confirmations still apply. Stale endpoints from crashed sessions are
+detected and cleaned automatically.
+
 ---
 
 ## Related

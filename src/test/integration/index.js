@@ -1,4 +1,7 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const vscode = require('vscode');
 
 function delay(milliseconds) {
@@ -42,6 +45,23 @@ async function run() {
   for (const command of ['muster.runGroup', 'muster.stopGroup', 'muster.refresh']) {
     assert.ok(commands.includes(command), `${command} should be registered`);
   }
+
+  console.log('[integration] checking IPC discovery file');
+  const discoveryDir = path.join(os.homedir(), '.config', 'muster', 'ipc');
+  let discovered = null;
+  for (let attempt = 0; attempt < 20 && !discovered; attempt++) {
+    if (fs.existsSync(discoveryDir)) {
+      const entries = fs
+        .readdirSync(discoveryDir)
+        .filter((f) => f.endsWith('.json'))
+        .map((f) => JSON.parse(fs.readFileSync(path.join(discoveryDir, f), 'utf-8')))
+        .filter((e) => e.workspace === workspaceFolder.uri.fsPath);
+      if (entries.length > 0) discovered = entries[0];
+    }
+    if (!discovered) await delay(250);
+  }
+  assert.ok(discovered, 'IPC discovery file should be written for the workspace');
+  assert.ok(discovered.port > 0, 'IPC discovery file should record a real port');
 
   console.log('[integration] opening Muster sidebar views');
   await vscode.commands.executeCommand('workbench.view.extension.muster');
