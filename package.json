@@ -15,6 +15,20 @@
   "categories": [
     "Other"
   ],
+  "keywords": [
+    "dev server",
+    "orchestration",
+    "process manager",
+    "terminal",
+    "monorepo",
+    "fullstack",
+    "mcp",
+    "agent"
+  ],
+  "galleryBanner": {
+    "color": "#0b0d10",
+    "theme": "dark"
+  },
   "icon": "media/icon.png",
   "activationEvents": [
     "onStartupFinished",
