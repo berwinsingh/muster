@@ -1,7 +1,10 @@
 src/**
 **/*.map
 node_modules/**
+dist-test/**
+.github/**
 .vscode/launch.json
 .vscode/tasks.json
+scripts/run-integration-tests.cjs
 esbuild.mjs
 tsconfig.json

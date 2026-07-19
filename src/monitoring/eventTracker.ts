@@ -1,14 +1,21 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { loadMergedConfig } from '../config/loader';
 import { MonitoringConfig } from '../config/schema';
+import { getDevStackWorkspaceFolder } from '../config/workspaceFolder';
 import { ProcessTracker } from '../orchestration/processTracker';
+import {
+  countEventsBySeverity,
+  EventFilters,
+  EventSeverity,
+  filterEvents,
+} from './eventFilters';
+import { matchTerminalLine } from './matchLine';
 import {
   compilePatterns,
   diagnosticSeverityToEventSeverity,
   resolveMonitoringConfig,
 } from './patterns';
-import { matchTerminalLine } from './matchLine';
-import { getDevStackWorkspaceFolder } from '../config/workspaceFolder';
 
 export type DevStackEvent = {
   id: string;
@@ -17,18 +24,34 @@ export type DevStackEvent = {
   serviceId: string;
   groupLabel: string;
   serviceName: string;
-  severity: 'error' | 'warning' | 'info';
+  severity: EventSeverity;
   message: string;
   source: 'terminal' | 'diagnostics';
   patternId?: string;
   category?: string;
   location?: {
     uri: string;
-    range: { start: { line: number; character: number }; end: { line: number; character: number } };
+    range: {
+      start: { line: number; character: number };
+      end: { line: number; character: number };
+    };
   };
 };
 
 const MAX_EVENTS = 500;
+
+type ServiceMeta = {
+  groupId: string;
+  serviceId: string;
+  groupLabel: string;
+  serviceName: string;
+  cwd: string;
+};
+
+function isPathInside(candidate: string, parent: string): boolean {
+  const relative = path.relative(path.resolve(parent), path.resolve(candidate));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
 
 export class EventTracker implements vscode.Disposable {
   private readonly events: DevStackEvent[] = [];
@@ -38,6 +61,11 @@ export class EventTracker implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private eventCounter = 0;
   private monitoring: MonitoringConfig | undefined;
+  private terminalPatterns = compilePatterns(
+    resolveMonitoringConfig(undefined).patterns.filter((pattern) =>
+      pattern.sources.includes('terminal')
+    )
+  );
 
   constructor(tracker: ProcessTracker) {
     this.disposables.push(
@@ -68,6 +96,12 @@ export class EventTracker implements vscode.Disposable {
     } catch {
       this.monitoring = undefined;
     }
+
+    const resolved = resolveMonitoringConfig(this.monitoring);
+    this.terminalPatterns = compilePatterns(
+      resolved.patterns.filter((pattern) => pattern.sources.includes('terminal'))
+    );
+    this.processDiagnostics();
   }
 
   private nextId(): string {
@@ -81,8 +115,8 @@ export class EventTracker implements vscode.Disposable {
   ): { groupLabel: string; serviceName: string } {
     try {
       const config = loadMergedConfig(getDevStackWorkspaceFolder());
-      const group = config.groups.find((g) => g.id === groupId);
-      const service = group?.services.find((s) => s.id === serviceId);
+      const group = config.groups.find((candidate) => candidate.id === groupId);
+      const service = group?.services.find((candidate) => candidate.id === serviceId);
       return {
         groupLabel: group?.label ?? groupId,
         serviceName: service?.name ?? serviceId,
@@ -92,95 +126,125 @@ export class EventTracker implements vscode.Disposable {
     }
   }
 
-  private addEvent(event: Omit<DevStackEvent, 'id'>): void {
+  private addEvent(event: Omit<DevStackEvent, 'id'>, notify = true): void {
     this.events.unshift({ ...event, id: this.nextId() });
     if (this.events.length > MAX_EVENTS) {
       this.events.length = MAX_EVENTS;
     }
-    this.onDidChangeEmitter.fire();
+    if (notify) {
+      this.onDidChangeEmitter.fire();
+    }
   }
 
   private processTerminalLine(groupId: string, serviceId: string, line: string): void {
-    const resolved = resolveMonitoringConfig(this.monitoring);
-    const patterns = compilePatterns(
-      resolved.patterns.filter((p) => p.sources.includes('terminal'))
-    );
-
-    const bestMatch = matchTerminalLine(line, patterns);
-    if (!bestMatch) {
+    const message = line.trim();
+    if (!message) {
       return;
     }
 
+    const bestMatch = matchTerminalLine(message, this.terminalPatterns);
     const meta = this.getServiceMeta(groupId, serviceId);
+
     this.addEvent({
       timestamp: Date.now(),
       groupId,
       serviceId,
       groupLabel: meta.groupLabel,
       serviceName: meta.serviceName,
-      severity: bestMatch.severity,
-      message: line.trim(),
+      severity: bestMatch?.severity ?? 'other',
+      message,
       source: 'terminal',
-      patternId: bestMatch.id,
-      category: bestMatch.category,
+      patternId: bestMatch?.id,
+      category: bestMatch?.category ?? 'other',
     });
+  }
+
+  private getConfiguredServices(): ServiceMeta[] {
+    const folder = getDevStackWorkspaceFolder();
+    if (!folder) {
+      return [];
+    }
+
+    try {
+      const config = loadMergedConfig(folder);
+      return config.groups.flatMap((group) =>
+        group.services.map((service) => ({
+          groupId: group.id,
+          serviceId: service.id,
+          groupLabel: group.label,
+          serviceName: service.name,
+          cwd: service.cwd ?? folder.uri.fsPath,
+        }))
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private findServiceForDiagnostic(uri: vscode.Uri, services: ServiceMeta[]): ServiceMeta | undefined {
+    return services
+      .filter((service) => isPathInside(uri.fsPath, service.cwd))
+      .sort((left, right) => right.cwd.length - left.cwd.length)[0];
   }
 
   private processDiagnostics(): void {
     const resolved = resolveMonitoringConfig(this.monitoring);
+    const terminalEvents = this.events.filter((event) => event.source === 'terminal');
+
     if (!resolved.includeDiagnostics) {
+      if (terminalEvents.length !== this.events.length) {
+        this.events.length = 0;
+        this.events.push(...terminalEvents);
+        this.onDidChangeEmitter.fire();
+      }
       return;
     }
 
-    const folder = getDevStackWorkspaceFolder();
-    if (!folder) {
+    const services = this.getConfiguredServices();
+    if (!services.length) {
       return;
     }
 
-    // Replace prior diagnostic events on each refresh
-    const terminalEvents = this.events.filter((e) => e.source === 'terminal');
-    this.events.length = 0;
-    this.events.push(...terminalEvents);
+    const diagnosticsEvents: Array<Omit<DevStackEvent, 'id'>> = [];
+    for (const [uri, diagnostics] of vscode.languages.getDiagnostics()) {
+      const service = this.findServiceForDiagnostic(uri, services);
+      if (!service) {
+        continue;
+      }
 
-    let config;
-    try {
-      config = loadMergedConfig(folder);
-    } catch {
-      return;
-    }
-
-    for (const group of config.groups) {
-      for (const service of group.services) {
-        const cwd = service.cwd ?? folder.uri.fsPath;
-        const uri = vscode.Uri.file(cwd);
-        const diagnostics = vscode.languages.getDiagnostics(uri);
-
-        for (const diag of diagnostics) {
-          const severity = diagnosticSeverityToEventSeverity(diag.severity);
-          if (!severity) {
-            continue;
-          }
-
-          this.addEvent({
-            timestamp: Date.now(),
-            groupId: group.id,
-            serviceId: service.id,
-            groupLabel: group.label,
-            serviceName: service.name,
-            severity,
-            message: diag.message,
-            source: 'diagnostics',
-            location: {
-              uri: uri.fsPath,
-              range: {
-                start: diag.range.start,
-                end: diag.range.end,
-              },
-            },
-          });
+      for (const diagnostic of diagnostics) {
+        const severity = diagnosticSeverityToEventSeverity(diagnostic.severity);
+        if (!severity) {
+          continue;
         }
+
+        diagnosticsEvents.push({
+          timestamp: Date.now(),
+          groupId: service.groupId,
+          serviceId: service.serviceId,
+          groupLabel: service.groupLabel,
+          serviceName: service.serviceName,
+          severity,
+          message: diagnostic.message,
+          source: 'diagnostics',
+          category: 'diagnostics',
+          location: {
+            uri: uri.fsPath,
+            range: {
+              start: diagnostic.range.start,
+              end: diagnostic.range.end,
+            },
+          },
+        });
       }
     }
+
+    this.events.length = 0;
+    this.events.push(...terminalEvents);
+    for (const diagnosticEvent of diagnosticsEvents) {
+      this.addEvent(diagnosticEvent, false);
+    }
+    this.onDidChangeEmitter.fire();
   }
 
   getEvents(): DevStackEvent[] {
@@ -191,78 +255,47 @@ export class EventTracker implements vscode.Disposable {
     return this.events.length > 0;
   }
 
-  getFilteredEvents(filters: {
-    dateRange?: 'today' | '3d' | 'maxDays' | 'all';
-    severity?: 'error' | 'warning' | 'info' | 'all';
-    groupId?: string;
-    serviceId?: string;
-    category?: string;
-  }): DevStackEvent[] {
-    const now = Date.now();
-    const dayMs = 24 * 60 * 60 * 1000;
-    const maxDays = resolveMonitoringConfig(this.monitoring).maxDays;
-
-    return this.events.filter((event) => {
-      const age = now - event.timestamp;
-      if (filters.dateRange === 'today' && age > dayMs) {
-        return false;
-      }
-      if (filters.dateRange === '3d' && age > 3 * dayMs) {
-        return false;
-      }
-      if (filters.dateRange === 'maxDays' && age > maxDays * dayMs) {
-        return false;
-      }
-      if (filters.severity && filters.severity !== 'all' && event.severity !== filters.severity) {
-        return false;
-      }
-      if (filters.groupId && filters.groupId !== 'all' && event.groupId !== filters.groupId) {
-        return false;
-      }
-      if (filters.serviceId && filters.serviceId !== 'all' && event.serviceId !== filters.serviceId) {
-        return false;
-      }
-      if (filters.category && filters.category !== 'all') {
-        if (!event.category || event.category !== filters.category) {
-          return false;
-        }
-      }
-      return true;
+  getFilteredEvents(filters: EventFilters): DevStackEvent[] {
+    return filterEvents(this.events, filters, {
+      maxDays: resolveMonitoringConfig(this.monitoring).maxDays,
     });
   }
 
   getMonitoringMeta(): { maxDays: number; categories: string[] } {
     const resolved = resolveMonitoringConfig(this.monitoring);
-    const categories = [
-      ...new Set(
-        resolved.patterns
-          .map((p) => p.category)
-          .filter((c): c is string => Boolean(c))
-      ),
-    ].sort();
-    return { maxDays: resolved.maxDays, categories };
+    const categories = new Set<string>();
+
+    for (const pattern of resolved.patterns) {
+      if (pattern.category) {
+        categories.add(pattern.category);
+      }
+    }
+    for (const event of this.events) {
+      if (event.category) {
+        categories.add(event.category);
+      }
+    }
+
+    return { maxDays: resolved.maxDays, categories: [...categories].sort() };
   }
 
   getSeverityCounts(
-    filters: Omit<Parameters<EventTracker['getFilteredEvents']>[0], 'severity'>
-  ): Record<'error' | 'warning' | 'info', number> {
-    const counts = { error: 0, warning: 0, info: 0 };
-    for (const event of this.getFilteredEvents({ ...filters, severity: 'all' })) {
-      counts[event.severity] += 1;
-    }
-    return counts;
+    filters: Omit<EventFilters, 'severity'>
+  ): Record<EventSeverity, number> {
+    const events = this.getFilteredEvents({ ...filters, severity: 'all' });
+    return countEventsBySeverity(events);
   }
 
   getServiceEventCount(
     groupId: string,
     serviceId: string,
-    severity?: 'error' | 'warning' | 'info'
+    severity?: Exclude<EventSeverity, 'other'>
   ): number {
-    return this.events.filter((e) => {
-      if (e.groupId !== groupId || e.serviceId !== serviceId) {
+    return this.events.filter((event) => {
+      if (event.groupId !== groupId || event.serviceId !== serviceId) {
         return false;
       }
-      if (severity && e.severity !== severity) {
+      if (severity && event.severity !== severity) {
         return false;
       }
       return true;
@@ -275,8 +308,8 @@ export class EventTracker implements vscode.Disposable {
   }
 
   dispose(): void {
-    for (const d of this.disposables) {
-      d.dispose();
+    for (const disposable of this.disposables) {
+      disposable.dispose();
     }
     this.onDidChangeEmitter.dispose();
   }
@@ -285,8 +318,8 @@ export class EventTracker implements vscode.Disposable {
 export async function revealEvent(event: DevStackEvent, tracker: ProcessTracker): Promise<void> {
   if (event.source === 'diagnostics' && event.location) {
     const uri = vscode.Uri.file(event.location.uri);
-    const doc = await vscode.workspace.openTextDocument(uri);
-    const editor = await vscode.window.showTextDocument(doc);
+    const document = await vscode.workspace.openTextDocument(uri);
+    const editor = await vscode.window.showTextDocument(document);
     const range = new vscode.Range(
       event.location.range.start.line,
       event.location.range.start.character,
@@ -299,7 +332,5 @@ export async function revealEvent(event: DevStackEvent, tracker: ProcessTracker)
   }
 
   const tracked = tracker.getService(event.groupId, event.serviceId);
-  if (tracked?.terminal) {
-    tracked.terminal.show();
-  }
+  tracked?.terminal?.show();
 }

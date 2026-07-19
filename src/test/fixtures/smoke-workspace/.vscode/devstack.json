@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "groups": [
+    {
+      "id": "smoke",
+      "label": "Smoke Test",
+      "layout": "dedicated",
+      "order": "parallel",
+      "services": [
+        {
+          "id": "logger",
+          "name": "Smoke Logger",
+          "command": "node -e \"console.log('INFO: ready'); console.log('plain output'); console.error('ERROR: failure sample'); setInterval(() => console.log('heartbeat'), 1000)\"",
+          "cwd": "${workspaceFolder}"
+        }
+      ]
+    }
+  ]
+}

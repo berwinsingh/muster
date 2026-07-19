@@ -15,17 +15,6 @@ export type TrackedService = {
 
 const MAX_OUTPUT_LINES = 500;
 
-type TerminalDataWriteEvent = {
-  terminal: vscode.Terminal;
-  data: string;
-};
-
-type WindowWithTerminalData = typeof vscode.window & {
-  onDidWriteTerminalData?: (
-    listener: (event: TerminalDataWriteEvent) => void
-  ) => vscode.Disposable;
-};
-
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\r/g, '');
 }
@@ -45,16 +34,36 @@ export class ProcessTracker implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor() {
-    const windowApi = vscode.window as WindowWithTerminalData;
-    if (windowApi.onDidWriteTerminalData) {
-      this.disposables.push(
-        windowApi.onDidWriteTerminalData((event) => {
-          const tracked = this.findByTerminal(event.terminal);
-          if (tracked) {
-            this.appendOutput(tracked.groupId, tracked.serviceId, event.data);
-          }
-        })
-      );
+    this.disposables.push(
+      vscode.window.onDidStartTerminalShellExecution((event) => {
+        void this.consumeShellExecution(event);
+      }),
+      vscode.window.onDidEndTerminalShellExecution((event) => {
+        const tracked = this.findByTerminal(event.terminal);
+        if (!tracked) {
+          return;
+        }
+        this.flushPartialLine(tracked);
+        tracked.status = event.exitCode === undefined || event.exitCode === 0 ? 'stopped' : 'failed';
+        this.onDidChangeEmitter.fire();
+      })
+    );
+  }
+
+  private async consumeShellExecution(
+    event: vscode.TerminalShellExecutionStartEvent
+  ): Promise<void> {
+    const tracked = this.findByTerminal(event.terminal);
+    if (!tracked) {
+      return;
+    }
+
+    try {
+      for await (const data of event.execution.read()) {
+        this.appendOutput(tracked.groupId, tracked.serviceId, data);
+      }
+    } catch (err) {
+      console.warn('[DevStack] Unable to read terminal shell execution output:', err);
     }
   }
 
@@ -137,6 +146,31 @@ export class ProcessTracker implements vscode.Disposable {
     return Array.from(this.services.values());
   }
 
+  private emitLine(tracked: TrackedService, line: string): void {
+    if (!line) {
+      return;
+    }
+    tracked.outputBuffer.push(line);
+    this.onDidAppendOutputEmitter.fire({
+      groupId: tracked.groupId,
+      serviceId: tracked.serviceId,
+      line,
+    });
+  }
+
+  private flushPartialLine(tracked: TrackedService): void {
+    const line = tracked.partialLine.trimEnd();
+    tracked.partialLine = '';
+    this.emitLine(tracked, line);
+    this.trimOutputBuffer(tracked);
+  }
+
+  private trimOutputBuffer(tracked: TrackedService): void {
+    if (tracked.outputBuffer.length > MAX_OUTPUT_LINES) {
+      tracked.outputBuffer.splice(0, tracked.outputBuffer.length - MAX_OUTPUT_LINES);
+    }
+  }
+
   appendOutput(groupId: string, serviceId: string, data: string): void {
     const tracked = this.services.get(this.key(groupId, serviceId));
     if (!tracked) {
@@ -149,17 +183,10 @@ export class ProcessTracker implements vscode.Disposable {
     tracked.partialLine = parts.pop() ?? '';
 
     for (const rawLine of parts) {
-      const line = rawLine.trimEnd();
-      if (line.length === 0) {
-        continue;
-      }
-      tracked.outputBuffer.push(line);
-      this.onDidAppendOutputEmitter.fire({ groupId, serviceId, line });
+      this.emitLine(tracked, rawLine.trimEnd());
     }
 
-    if (tracked.outputBuffer.length > MAX_OUTPUT_LINES) {
-      tracked.outputBuffer.splice(0, tracked.outputBuffer.length - MAX_OUTPUT_LINES);
-    }
+    this.trimOutputBuffer(tracked);
   }
 
   getGroupStatus(groupId: string, serviceIds: string[]): GroupStatus {
@@ -190,7 +217,7 @@ export class ProcessTracker implements vscode.Disposable {
       state = 'starting';
     } else if (running > 0) {
       state = 'partial';
-    } else if (Object.values(services).some((s) => s === 'stopped')) {
+    } else if (Object.values(services).some((status) => status === 'stopped')) {
       state = 'stopped';
     }
 
@@ -217,15 +244,12 @@ export class ProcessTracker implements vscode.Disposable {
       return;
     }
 
+    this.flushPartialLine(tracked);
     if (tracked.childProcess && !tracked.childProcess.killed) {
       tracked.childProcess.kill('SIGTERM');
     }
-    if (tracked.pseudoterminal) {
-      tracked.pseudoterminal.dispose();
-    }
-    if (tracked.terminal) {
-      tracked.terminal.dispose();
-    }
+    tracked.pseudoterminal?.dispose();
+    tracked.terminal?.dispose();
 
     tracked.status = 'stopped';
     this.onDidChangeEmitter.fire();
@@ -240,8 +264,8 @@ export class ProcessTracker implements vscode.Disposable {
 
   isGroupRunning(groupId: string, serviceIds: string[]): boolean {
     return serviceIds.some((id) => {
-      const s = this.services.get(this.key(groupId, id));
-      return s?.status === 'running' || s?.status === 'starting';
+      const service = this.services.get(this.key(groupId, id));
+      return service?.status === 'running' || service?.status === 'starting';
     });
   }
 

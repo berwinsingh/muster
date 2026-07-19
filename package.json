@@ -2,7 +2,7 @@
   "name": "devstack",
   "displayName": "DevStack",
   "description": "One-click dev server group orchestration with MCP agent integration",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "publisher": "devstack",
   "license": "MIT",
   "repository": {
@@ -121,7 +121,7 @@
         {
           "id": "devstack",
           "title": "DevStack",
-          "icon": "$(server-process)"
+          "icon": "media/devstack.svg"
         }
       ]
     },
@@ -275,6 +275,7 @@
     "prepare-icons": "node scripts/prepare-icons.mjs",
     "package": "npm run prepare-icons && npm run compile && vsce package",
     "test": "npm run compile:test && node --require ./src/test/vscode-shim.cjs --test dist-test/**/*.test.js",
+    "test:integration": "node scripts/run-integration-tests.cjs",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {

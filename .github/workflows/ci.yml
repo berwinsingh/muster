@@ -1,0 +1,67 @@
+name: DevStack CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Compile extension
+        run: npm run compile
+
+      - name: Run VS Code Extension Host smoke test
+        id: integration
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a npm run test:integration 2>&1 | tee integration.log
+
+      - name: Upload Extension Host log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-host-log
+          path: integration.log
+          if-no-files-found: error
+
+      - name: Package VSIX
+        run: npm run package -- --out devstack-0.1.10.vsix
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: devstack-vsix
+          path: devstack-0.1.10.vsix
+          if-no-files-found: error
+
+      - name: Fail when Extension Host smoke test failed
+        if: steps.integration.outcome == 'failure'
+        run: exit 1
