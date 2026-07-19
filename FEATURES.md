@@ -123,14 +123,14 @@ Easiest — install the repo as a plugin (registers the MCP server *and* the
 agent skill in one step). In a Claude Code session:
 
 ```
-/plugin marketplace add berwinsingh/one-click-terminal-setup-vscode
+/plugin marketplace add berwinsingh/muster
 /plugin install muster@muster
 ```
 
 Or register just the MCP server from a clone of this repo:
 
 ```bash
-claude mcp add muster -- node /path/to/one-click-terminal-setup-vscode/bin/muster-mcp.cjs
+claude mcp add muster -- node /path/to/muster/bin/muster-mcp.cjs
 ```
 
 Verify with `/mcp` in a Claude Code session — the `muster` server should
@@ -139,7 +139,7 @@ list six tools.
 #### Codex CLI
 
 ```bash
-codex mcp add muster -- node /path/to/one-click-terminal-setup-vscode/bin/muster-mcp.cjs
+codex mcp add muster -- node /path/to/muster/bin/muster-mcp.cjs
 ```
 
 Or add to `~/.codex/config.toml` directly:
@@ -147,7 +147,7 @@ Or add to `~/.codex/config.toml` directly:
 ```toml
 [mcp_servers.muster]
 command = "node"
-args = ["/path/to/one-click-terminal-setup-vscode/bin/muster-mcp.cjs"]
+args = ["/path/to/muster/bin/muster-mcp.cjs"]
 ```
 
 Verify with `/mcp` inside a Codex session.
@@ -164,7 +164,7 @@ project) or `~/.cursor/mcp.json` (global):
   "mcpServers": {
     "muster": {
       "command": "node",
-      "args": ["/path/to/one-click-terminal-setup-vscode/bin/muster-mcp.cjs"]
+      "args": ["/path/to/muster/bin/muster-mcp.cjs"]
     }
   }
 }
