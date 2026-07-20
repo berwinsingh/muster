@@ -43,10 +43,50 @@ Cursor users.
    npx ovsx publish muster-<version>.vsix -p <token>
    ```
 
+## npm (`npm install -g muster-cli`)
+
+The name **`muster`** is already taken on npm's registry (an unrelated
+package — npm's namespace is global and separate from the Marketplace's
+`publisher.name`, so this doesn't affect the extension identity at all).
+**`muster-cli`** is free and is what's published — checked and reserved as
+of writing.
+
+This ships from [packages/muster-cli](packages/muster-cli), a small
+package independent of the root one: its own `package.json`/name, but the
+*same* compiled CLI. `scripts/build-npm-package.mjs` copies the built
+`dist/cli.js` and `dist/mcp/server.js` in before every pack/publish and
+syncs the version from the root `package.json` — there is exactly one
+source of truth, nothing to keep in sync by hand.
+
+1. **Create an npm account** at <https://npmjs.com/signup> if you don't
+   have one, then `npm login` in a terminal.
+2. Build and publish:
+   ```bash
+   npm run build:npm-package        # compiles + copies dist/cli.js, dist/mcp/server.js in
+   cd packages/muster-cli
+   npm publish                      # first publish only: add --access public
+   ```
+
+Subsequent releases: bump `"version"` in the **root** `package.json` (the
+build script copies it over automatically), then repeat step 2.
+
+**Verified before this was ever documented anywhere**: packed the tarball
+with `npm pack`, installed it with `npm install -g <tarball> --prefix
+<scratch dir>` (fully isolated, no registry involved), and confirmed both
+`muster` and `muster-mcp` land on PATH via npm's own bin-linking with zero
+extra setup — `muster help` worked immediately, and `muster ls` reached a
+real running extension and returned live group data. The only thing left
+before this is real for actual users is your `npm publish`.
+
 ## After the first publish
 
-- Update the website ([docs/index.html](docs/index.html)): remove the `SOON`
-  badge from the Marketplace card — the `code --install-extension muster.muster`
-  command becomes real (adjust if the publisher ID changed).
-- Update [README.md](README.md) with a Marketplace badge/link.
-- The Marketplace listing page renders `README.md` — check it reads well there.
+- **VS Code Marketplace**: update the website ([docs/index.html](docs/index.html))
+  — remove the `SOON` badge from the Marketplace card; the
+  `code --install-extension muster.muster` command becomes real (adjust if
+  the publisher ID changed). Update [README.md](README.md) with a
+  Marketplace badge/link. The Marketplace listing page renders `README.md`
+  — check it reads well there.
+- **npm**: same on the npm card — flip it live once `npm publish` succeeds.
+  `npmjs.com/package/muster-cli` renders
+  [packages/muster-cli/README.md](packages/muster-cli/README.md), not the
+  root one — check that page too.

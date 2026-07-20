@@ -143,7 +143,23 @@ config always applies.
 ## CLI
 
 Control groups from any terminal while VS Code is open — including an
-interactive dashboard in the spirit of Claude Code / opencode:
+interactive dashboard in the spirit of Claude Code / opencode. The
+extension is the engine; the CLI is a client of it, so install the
+extension first, then get `muster` on your PATH however's easiest:
+
+```bash
+npm install -g muster-cli
+```
+
+That's the whole install — npm's own bin-linking puts `muster` and
+`muster-mcp` on PATH with nothing else to configure (verified with an
+isolated global install before this was written down anywhere). Two more
+ways that need zero npm at all: the extension offers, once, to install
+the CLI itself the first time it sees a config in a workspace — click
+**Install** in the notification and it's done; or trigger it anytime with
+**`Muster: Install 'muster' Command in PATH`** from the Command Palette
+(same mechanism VS Code uses for its own `code` command). Prefer building
+from a checkout instead: `npm link`, or run `node bin/muster.cjs` directly.
 
 ```bash
 muster              # interactive TUI dashboard
@@ -153,15 +169,22 @@ muster stop full-stack api        # stop just one service
 muster logs full-stack api -f
 ```
 
+Manage config from the terminal too — no need to open the editor:
+
+```bash
+muster init                                   # scaffold a starter .vscode/muster.json
+muster create api --command "npm run dev" --port 4000 --label "API"
+muster add api worker --command "node worker.js"   # add a service to a group
+muster delete api worker                      # remove a service
+muster delete api                             # remove the whole group
+```
+
 The dashboard is operated three ways: hotkeys (`r`/`s`/`x` act on the
 selected group *or* service, `l` logs, `/` filter), the mouse (click
 rows to select, click the footer buttons, scroll wheel), or the
 command palette — press `:` and type what you want (`stop web` fuzzy-
-matches `stop split-demo/web`, enter runs it).
-
-Get `muster` on your PATH with `npm link` from a repo checkout, or run
-`node bin/muster.cjs` directly (it finds the CLI inside an installed
-extension too).
+matches `stop split-demo/web`, enter runs it). In the sidebar tree,
+right-click a group or service for run/stop/edit/**delete**.
 
 ## MCP integration
 
