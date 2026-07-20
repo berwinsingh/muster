@@ -142,10 +142,25 @@ config always applies.
 
 ## CLI
 
-Control groups from any terminal while VS Code is open — including an
-interactive dashboard in the spirit of Claude Code / opencode. The
-extension is the engine; the CLI is a client of it, so install the
-extension first, then get `muster` on your PATH however's easiest:
+Two modes, one command:
+
+**`muster up` — standalone, no VS Code needed.** Reads `.vscode/muster.json`
+(from the current directory or any parent) and runs the group right in your
+terminal: same dependency ordering, ready patterns, hooks, and `${...}`
+substitution as the extension. Logs stream prefixed per service; Ctrl+C
+stops the whole tree — no orphans.
+
+```bash
+cd my-project
+muster up              # first group in the config
+muster up full-stack   # or a specific one
+```
+
+**Everything else — a remote control for the VS Code extension.** `run`,
+`stop`, `ls`, `logs`, the TUI dashboard, and config commands drive the
+extension over localhost, so groups run in visible VS Code terminals with
+the trust model applied. These need VS Code (or Cursor) open with Muster
+active. Get `muster` on your PATH however's easiest:
 
 ```bash
 npm install -g muster-cli

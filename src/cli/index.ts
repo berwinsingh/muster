@@ -7,14 +7,73 @@
  * mechanism as the MCP server.
  */
 import { CliGroupStatus, IpcClient, NOT_RUNNING } from './client';
+import { findConfigRoot, loadHeadlessConfig } from './headlessConfig';
 import { A, plainGroupList, statusDot } from './render';
+import { Supervisor } from './supervisor';
 import { runTui } from './tui';
+
+/** `muster up [group]` — run a group standalone, no VS Code required. */
+async function runHeadless(rest: string[]): Promise<void> {
+  const root = findConfigRoot(process.env.MUSTER_WORKSPACE ?? process.cwd());
+  if (!root) {
+    fail(
+      'No .vscode/muster.json found here or in any parent directory. Run "muster init" (with VS Code open) or create one — see https://github.com/berwinsingh/muster'
+    );
+  }
+  const { groups } = loadHeadlessConfig(root);
+  if (groups.length === 0) {
+    fail('The config has no groups.');
+  }
+
+  const groupId = rest[0] && !rest[0].startsWith('-') ? rest[0] : undefined;
+  const group = groupId ? groups.find((g) => g.id === groupId) : groups[0];
+  if (!group) {
+    fail(`Unknown group "${groupId}". Available: ${groups.map((g) => g.id).join(', ')}`);
+  }
+  if (!groupId && groups.length > 1) {
+    process.stdout.write(
+      `${A.dim}Multiple groups found — running "${group.id}". Others: ${groups
+        .filter((g) => g.id !== group.id)
+        .map((g) => g.id)
+        .join(', ')}${A.reset}\n`
+    );
+  }
+
+  const supervisor = new Supervisor(group, root, (line) => process.stdout.write(line + '\n'));
+  let shuttingDown = false;
+  const shutdown = (): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    void supervisor.down().then(() => process.exit(0));
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
+  try {
+    await supervisor.up();
+  } catch (err) {
+    process.stderr.write(`${A.red}✗${A.reset} ${err instanceof Error ? err.message : err}\n`);
+    await supervisor.down();
+    process.exit(1);
+  }
+
+  // Stay in the foreground while services live; exit when they all stop.
+  const watch = setInterval(() => {
+    if (!supervisor.alive && !shuttingDown) {
+      clearInterval(watch);
+      process.stdout.write(`${A.amber}[muster]${A.reset} all services have exited\n`);
+      process.exit(0);
+    }
+  }, 1000);
+}
 
 const HELP = `
 ${A.amber}${A.bold}muster${A.reset} — one click (or one command), full stack running
 
 Usage:
-  muster                     Interactive dashboard (TUI)
+  muster up [group]          Run a group RIGHT HERE — no VS Code needed.
+                             Supervises the processes itself; Ctrl+C stops all.
+  muster                     Interactive dashboard (TUI; drives the VS Code extension)
   muster ls [--json]         List groups, services, and live status
   muster run <group> [service]      Start a group (or one service) and wait
   muster stop <group> [service]     Stop a group or a single service
@@ -93,6 +152,14 @@ async function main(): Promise<void> {
 
   if (command === 'help' || command === '--help' || command === '-h') {
     process.stdout.write(HELP);
+    return;
+  }
+
+  // `muster up` is fully standalone — it reads the config and supervises
+  // the processes itself, so it must run before any attempt to reach a
+  // VS Code extension.
+  if (command === 'up') {
+    await runHeadless(rest);
     return;
   }
 
