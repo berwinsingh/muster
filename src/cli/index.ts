@@ -32,10 +32,11 @@ import {
   updateService,
 } from '../config/mutate';
 import { effectiveCommand } from '../config/schema';
-import { LocalSource, MUSTER_FEED } from './localSource';
+import { LocalSource, MultiLocalSource, MUSTER_FEED } from './localSource';
 import { A, plainGroupList, serviceColor, statusDot } from './render';
 import { Supervisor } from './supervisor';
 import { runTui } from './tui';
+import { runFirstGroupWizard } from './wizard';
 
 /**
  * `muster up [group]` — run a group standalone, no VS Code required.
@@ -127,11 +128,14 @@ const HELP = `
 ${A.amber}${A.bold}muster${A.reset} — one click (or one command), full stack running
 
 Run (no VS Code needed):
-  muster up [group] [--no-detect]   Run a group RIGHT HERE with the full
-                             dashboard (same hotkeys/mouse as \`muster\`);
-                             q or Ctrl+C stops everything. Environments
-                             (venvs, .nvmrc) are detected and activated
-                             automatically; --no-detect turns that off.
+  muster                     THE dashboard. With VS Code running it drives
+                             the extension; without it, it runs your groups
+                             right here — and with no config yet, it walks
+                             you through creating your first group.
+  muster up [group] [--no-detect]   Run one group immediately with the same
+                             dashboard; q or Ctrl+C stops everything.
+                             Environments (venvs, .nvmrc) are detected and
+                             activated automatically; --no-detect opts out.
                              --plain streams flat logs instead (auto when piped).
 
 Configure (no VS Code needed — edits .vscode/muster.json directly;
@@ -153,7 +157,6 @@ with VS Code open, changes go through the extension and refresh live):
                              VS Code is running)
 
 Control a running VS Code extension:
-  muster                     Interactive dashboard (TUI)
   muster run <group> [service]      Start a group (or one service) and wait
   muster stop <group> [service]     Stop a group or a single service
   muster restart <group> [service]  Restart a group or a single service
@@ -311,13 +314,40 @@ async function main(): Promise<void> {
   switch (command) {
     case undefined:
     case 'ui': {
-      if (!client) {
-        fail(`${NOT_RUNNING} For a dashboard with no VS Code, run "muster up" instead.`);
+      if (!process.stdout.isTTY || !process.stdin.isTTY) {
+        fail('The dashboard needs a TTY. Try "muster ls" for plain output, or "muster up --plain" to stream a group.');
       }
-      if (!process.stdout.isTTY) {
-        fail('The dashboard needs a TTY. Try "muster ls" for plain output.');
+      if (client) {
+        await runTui(client);
+        return;
       }
-      await runTui(client);
+
+      // No VS Code: run the dashboard on the local config. With no
+      // config (or no groups) yet, walk through creating the first one.
+      const start = process.env.MUSTER_WORKSPACE ?? process.cwd();
+      let local = openLocalConfig(start);
+      let autoRun: string | null = null;
+      if (!local || local.config.groups.length === 0) {
+        const created = await runFirstGroupWizard(local?.root ?? path.resolve(start));
+        if (!created) return;
+        if (created.start) autoRun = created.groupId;
+        local = openLocalConfig(local?.root ?? start);
+        if (!local) return;
+      }
+
+      const { groups } = loadHeadlessConfig(local.root);
+      const source = new MultiLocalSource(local.root, groups, !rest.includes('--no-detect'));
+      let teardown: Promise<void> | null = null;
+      const shutdown = (): Promise<void> => (teardown ??= source.downAll());
+      process.on('SIGINT', () => void shutdown().then(() => process.exit(0)));
+      process.on('SIGTERM', () => void shutdown().then(() => process.exit(0)));
+      if (autoRun) void source.run(autoRun);
+      await runTui(source, {
+        groupFeedId: MUSTER_FEED,
+        quitLabel: 'quit (stops all)',
+        statusLine: () => source.lastActivity,
+        onQuit: shutdown,
+      });
       return;
     }
 

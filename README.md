@@ -174,11 +174,18 @@ running they route through it (so the sidebar refreshes live); without it
 they read and write `.vscode/muster.json` directly, validated by the same
 schema.
 
+**Bare `muster` adapts.** With VS Code running it's a remote control for
+the extension; without it, the same dashboard opens on your local config —
+every group listed idle, `r` to start one, each backed by its own local
+supervisor. No config yet? It walks you through creating your first group
+(name, services, ports — with environment detection as you type) and drops
+you straight into the dashboard.
+
 **Lifecycle commands — a remote control for the VS Code extension.** `run`,
-`stop`, `restart`, `status`, `logs`, and the default TUI dashboard drive the
-extension over localhost, so groups run in visible VS Code terminals with
-the trust model applied. These need VS Code (or Cursor) open with Muster
-active. Get `muster` on your PATH however's easiest:
+`stop`, `restart`, `status`, and `logs` drive the extension over localhost,
+so groups run in visible VS Code terminals with the trust model applied.
+These need VS Code (or Cursor) open with Muster active. Get `muster` on
+your PATH however's easiest:
 
 ```bash
 npm install -g muster-cli

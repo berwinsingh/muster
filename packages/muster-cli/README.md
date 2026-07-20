@@ -18,11 +18,13 @@ the servers running in your editor terminals.
 npm install -g muster-cli
 ```
 
-## Run a group — no VS Code
+## Run your groups — no VS Code
 
 ```bash
-muster init                       # scaffold .vscode/muster.json
-muster up                         # full dashboard: hotkeys, mouse, logs
+muster                            # THE dashboard. No config yet? A short
+                                  # wizard creates your first group, then
+                                  # you land in the dashboard with it running.
+muster up backend                 # or run one group immediately
 muster up backend --plain         # flat interleaved logs (auto when piped)
 ```
 
