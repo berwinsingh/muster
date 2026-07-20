@@ -6,10 +6,19 @@
 <title>Muster — One click. Full stack running.</title>
 <meta name="description" content="Muster is a VS Code extension that assembles your dev servers — API, frontend, workers — into named groups you run, monitor, and stop with one click. MCP built in for AI agents.">
 <link rel="icon" type="image/png" href="icon.png?v=2">
-<meta property="og:title" content="Muster — One click. Full stack running.">
-<meta property="og:description" content="Assemble your dev servers into named groups. Run, monitor, and stop everything from one panel in VS Code. MCP built in for AI agents.">
-<meta property="og:image" content="icon-256.png?v=2">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://berwinsingh.github.io/muster/">
+<meta property="og:site_name" content="Muster">
+<meta property="og:title" content="Muster — One click. Full stack running.">
+<meta property="og:description" content="Dev server groups for VS Code — run, monitor, and control them from the editor, the terminal, or your AI agent. CLI, TUI dashboard, and MCP built in.">
+<meta property="og:image" content="https://berwinsingh.github.io/muster/og-card.png?v=3">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Muster — One click. Full stack running.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Muster — One click. Full stack running.">
+<meta name="twitter:description" content="Dev server groups for VS Code — run, monitor, and control them from the editor, the terminal, or your AI agent.">
+<meta name="twitter:image" content="https://berwinsingh.github.io/muster/og-card.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -466,6 +475,7 @@
   .install-card > p { color: var(--muted); font-size: 14.5px; margin-bottom: 18px; }
   .install-card .cmd-block { margin-bottom: 12px; }
   .install-card .cmd-block:last-child { margin-bottom: 0; }
+  .install-card.cli-card { margin-top: 20px; border-color: rgba(255, 180, 84, 0.2); }
   .agents-note {
     margin-top: 20px;
     background: var(--bg-card);
@@ -678,7 +688,7 @@
   <div class="wrap">
     <p class="sec-eyebrow reveal">Terminal native</p>
     <h2 class="reveal">The same stack, from any terminal</h2>
-    <p class="sec-sub reveal">The <span style="font-family:var(--mono);font-size:0.85em">muster</span> CLI ships inside the extension — an interactive dashboard in the spirit of Claude Code and opencode, plus plain commands for scripts. VS Code stays the engine; your terminal becomes a remote control.</p>
+    <p class="sec-sub reveal">The <span style="font-family:var(--mono);font-size:0.85em">muster</span> CLI ships inside the extension — an interactive dashboard in the spirit of Claude Code and opencode, plus plain commands for scripts. Muster offers to put it on your PATH the first time it sees a config, no setup step to remember. VS Code stays the engine; your terminal becomes a remote control.</p>
 
     <div class="mock-outer" style="margin-top:44px; max-width: 860px;">
       <div class="window">
@@ -722,8 +732,8 @@
         <p>Click rows to select, click a service again for its logs, click the footer buttons to act, scroll to move. A TUI that behaves like a UI.</p>
       </div>
       <div class="cli-point reveal">
-        <h3>One server at a time</h3>
-        <p>Stop or restart a single service without touching its siblings. Follow logs live with <span style="font-family:var(--mono);font-size:0.9em">-f</span>, filter them as they stream, script it all with <span style="font-family:var(--mono);font-size:0.9em">muster ls --json</span>.</p>
+        <h3>Create, run, remove</h3>
+        <p>Scaffold config, create and delete groups (<span style="font-family:var(--mono);font-size:0.9em">muster create</span>), stop or restart a single service without touching its siblings, follow and filter logs — from the terminal or the sidebar tree.</p>
       </div>
     </div>
   </div>
@@ -747,7 +757,7 @@
         </div>
       </div>
       <div class="agents-copy">
-        <p><strong>Scoped by design.</strong> Agents can only act on group and service IDs defined in your config — unknown IDs are rejected, and every write action requires your confirmation in VS Code.</p>
+        <p><strong>Scoped by design.</strong> Agents can only act on group and service IDs defined in your config — unknown IDs are rejected, and every agent-initiated start/stop/restart pops a confirmation in VS Code that waits for your OK before anything runs.</p>
         <p><strong>Logs and config as resources.</strong> Agents read live state through MCP resources instead of scraping terminals:</p>
         <div class="res-list">
           <div class="res">muster://config/workspace</div>
@@ -835,9 +845,20 @@
 <span class="dollar">$</span> code --install-extension muster-0.1.10.vsix<button class="copy-btn" data-copy="git clone https://github.com/berwinsingh/muster.git && cd muster && npm install && npm run package && code --install-extension muster-0.1.10.vsix">copy</button></div>
       </div>
     </div>
+
+    <div class="install-card cli-card reveal">
+      <div class="install-card-head">
+        <h3>Prefer the terminal? Add the CLI</h3>
+        <span class="soon-badge">SOON</span>
+      </div>
+      <p>Once you have the extension (above), <span style="font-family:var(--mono);font-size:0.9em">npm install -g</span> puts <span style="font-family:var(--mono);font-size:0.9em">muster</span> and <span style="font-family:var(--mono);font-size:0.9em">muster-mcp</span> on your PATH in one command — no hunting through extension folders, no PATH edits. npm's own install mechanism handles that part; there's nothing else to configure.</p>
+      <div class="cmd-block"><span class="dollar">$</span> npm install -g muster-cli<button class="copy-btn" data-copy="npm install -g muster-cli">copy</button></div>
+      <p style="margin:14px 0 0; font-size:13.5px; color:var(--faint)">Don't want to wait? The extension already offers to install the CLI itself the first time it sees a config — one click, no npm required.</p>
+    </div>
+
     <div class="agents-note reveal">
       <span class="a-icon">🤖</span>
-      <span><strong>Using an AI agent?</strong> Agents inside VS Code and Cursor get Muster's MCP tools automatically once the extension is installed — see <a href="#agents" style="color:var(--amber)">Agents</a> above. Terminal agents work too: <code>claude mcp add muster -- node bin/muster-mcp.cjs</code>, or install the repo as a Claude Code plugin — it ships the skill and MCP server preconfigured.</span>
+      <span><strong>Using an AI agent?</strong> Agents inside VS Code and Cursor get Muster's MCP tools automatically once the extension is installed — see <a href="#agents" style="color:var(--amber)">Agents</a> above. Terminal agents work too: <code>claude mcp add muster -- muster-mcp</code> (after the npm install above) or <code>node bin/muster-mcp.cjs</code> from a checkout — or install the repo as a Claude Code plugin, which ships the skill and MCP server preconfigured.</span>
     </div>
   </div>
 </section>

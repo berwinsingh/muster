@@ -1,0 +1,38 @@
+{
+  "name": "muster-cli",
+  "version": "0.1.10",
+  "description": "Terminal dashboard and CLI for Muster — run, stop, and monitor dev server groups defined in .vscode/muster.json via the Muster VS Code/Cursor extension.",
+  "license": "MIT",
+  "homepage": "https://github.com/berwinsingh/muster",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/berwinsingh/muster.git",
+    "directory": "packages/muster-cli"
+  },
+  "bugs": "https://github.com/berwinsingh/muster/issues",
+  "keywords": [
+    "dev-server",
+    "orchestration",
+    "process-manager",
+    "cli",
+    "tui",
+    "vscode",
+    "mcp"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "bin": {
+    "muster": "./bin/muster.cjs",
+    "muster-mcp": "./bin/muster-mcp.cjs"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ]
+}

@@ -21,6 +21,13 @@ Usage:
   muster restart <group> [service]  Restart a group or a single service
   muster status <group>      Show per-service status
   muster logs <group> <service> [-n N] [-f]   Show (or follow) service output
+
+  muster init                Scaffold a starter .vscode/muster.json
+  muster create <group> --command "<cmd>" [--label L] [--service ID]
+                             [--name N] [--cwd DIR] [--port N] [--layout L]
+  muster add <group> <service> --command "<cmd>" [--name N] [--cwd DIR] [--port N]
+  muster delete <group> [service]   Remove a group (or one service)
+
   muster help                This message
 
 Requires VS Code or Cursor to be open with the Muster extension active.
@@ -29,6 +36,37 @@ Requires VS Code or Cursor to be open with the Muster extension active.
 function fail(message: string): never {
   process.stderr.write(`${A.red}✗${A.reset} ${message}\n`);
   process.exit(1);
+}
+
+/** Parse "--flag value" pairs and bare positionals out of an argv slice. */
+function parseFlags(args: string[]): { positionals: string[]; flags: Record<string, string> } {
+  const positionals: string[] = [];
+  const flags: Record<string, string> = {};
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith('--')) {
+      const key = arg.slice(2);
+      const value = args[i + 1] && !args[i + 1].startsWith('--') ? args[++i] : 'true';
+      flags[key] = value;
+    } else {
+      positionals.push(arg);
+    }
+  }
+  return { positionals, flags };
+}
+
+function serviceFromFlags(id: string, flags: Record<string, string>): Record<string, unknown> {
+  const command = flags.command;
+  if (!command) fail('A --command is required.');
+  const service: Record<string, unknown> = { id, command };
+  if (flags.name) service.name = flags.name;
+  if (flags.cwd) service.cwd = flags.cwd;
+  if (flags.port) {
+    const port = parseInt(flags.port, 10);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) fail(`Invalid --port: ${flags.port}`);
+    service.port = port;
+  }
+  return service;
 }
 
 async function waitForGroup(client: IpcClient, groupId: string, timeoutMs = 60_000): Promise<CliGroupStatus> {
@@ -170,6 +208,51 @@ async function main(): Promise<void> {
           // keep polling; VS Code may be restarting
         }
       }, 1000);
+      return;
+    }
+
+    case 'init': {
+      await client.initConfig();
+      process.stdout.write(`${A.green}✓${A.reset} ${A.amber}[muster]${A.reset} scaffolded .vscode/muster.json — run ${A.bold}muster ls${A.reset} to see it\n`);
+      return;
+    }
+
+    case 'create': {
+      const { positionals, flags } = parseFlags(rest);
+      const groupId = positionals[0] ?? fail('Usage: muster create <group> --command "<cmd>"');
+      const serviceId = flags.service || 'main';
+      const group: Record<string, unknown> = {
+        id: groupId,
+        service: serviceFromFlags(serviceId, flags),
+      };
+      if (flags.label) group.label = flags.label;
+      if (flags.layout) group.layout = flags.layout;
+      if (flags.order) group.order = flags.order;
+      await client.createGroup(group);
+      process.stdout.write(`${A.green}✓${A.reset} ${A.amber}[muster]${A.reset} created group ${A.bold}${groupId}${A.reset} — start it with ${A.bold}muster run ${groupId}${A.reset}\n`);
+      return;
+    }
+
+    case 'add': {
+      const { positionals, flags } = parseFlags(rest);
+      const groupId = positionals[0] ?? fail('Usage: muster add <group> <service> --command "<cmd>"');
+      const serviceId = positionals[1] ?? fail('Usage: muster add <group> <service> --command "<cmd>"');
+      await client.addService(groupId, serviceFromFlags(serviceId, flags));
+      process.stdout.write(`${A.green}✓${A.reset} ${A.amber}[muster]${A.reset} added ${A.bold}${serviceId}${A.reset} to ${groupId}\n`);
+      return;
+    }
+
+    case 'delete':
+    case 'rm': {
+      const groupId = rest[0] ?? fail('Usage: muster delete <group> [service]');
+      const serviceId = rest[1] && !rest[1].startsWith('-') ? rest[1] : undefined;
+      if (serviceId) {
+        await client.deleteService(groupId, serviceId);
+        process.stdout.write(`${A.amber}[muster]${A.reset} removed ${groupId}/${serviceId}\n`);
+      } else {
+        await client.deleteGroup(groupId);
+        process.stdout.write(`${A.amber}[muster]${A.reset} removed group ${groupId}\n`);
+      }
       return;
     }
 

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="glow" cx="18%" cy="8%" r="60%">
+      <stop offset="0%" stop-color="#ffb454" stop-opacity="0.16"/>
+      <stop offset="60%" stop-color="#ffb454" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="grid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="#0b0d10"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect width="1200" height="4" fill="#ffb454" opacity="0.9"/>
+
+  <!-- brand row -->
+  <g transform="translate(88, 92)">
+    <rect x="0" y="0" width="64" height="14" rx="7" fill="#ffb454"/>
+    <rect x="0" y="24" width="44" height="14" rx="7" fill="#ffb454" opacity="0.72"/>
+    <rect x="0" y="48" width="26" height="14" rx="7" fill="#ffb454" opacity="0.45"/>
+    <text x="92" y="52" font-family="'DejaVu Sans Mono', monospace" font-size="40" font-weight="700" letter-spacing="14" fill="#e9e6df">MUSTER</text>
+  </g>
+
+  <!-- headline -->
+  <text x="86" y="308" font-family="'DejaVu Sans', sans-serif" font-size="94" font-weight="700" letter-spacing="-2" fill="#e9e6df">One click.</text>
+  <text x="86" y="410" font-family="'DejaVu Sans', sans-serif" font-size="94" font-weight="700" letter-spacing="-2" fill="#ffb454">Full stack running.</text>
+
+  <!-- subtitle -->
+  <text x="88" y="482" font-family="'DejaVu Sans', sans-serif" font-size="31" fill="#9aa3ad">Dev server groups for VS Code — run, monitor, and control them from</text>
+  <text x="88" y="524" font-family="'DejaVu Sans', sans-serif" font-size="31" fill="#9aa3ad">the editor, the terminal, or your AI agent.</text>
+
+  <!-- footer tags -->
+  <text x="88" y="590" font-family="'DejaVu Sans Mono', monospace" font-size="24" letter-spacing="2" fill="#6b7480">VS Code   ·   CLI + TUI   ·   MCP   ·   open source</text>
+</svg>

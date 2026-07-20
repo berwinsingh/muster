@@ -140,6 +140,63 @@ async function run() {
   assert.ok(discovered, 'IPC discovery file should be written for the workspace');
   assert.ok(discovered.port > 0, 'IPC discovery file should record a real port');
 
+  // Drive the CLI as a separate process (forces the discovery path, like a
+  // real terminal). Defined early so the terminal-free config tests run
+  // before any terminal rendering happens.
+  const externalEnv = { ...process.env, MUSTER_WORKSPACE: workspaceFolder.uri.fsPath };
+  delete externalEnv.MUSTER_IPC_PORT;
+  const cliPath = path.join(extension.extensionPath, 'bin', 'muster.cjs');
+  const runCli = (args) =>
+    new Promise((resolve) => {
+      const child = require('node:child_process').spawn(process.execPath, [cliPath, ...args], {
+        env: externalEnv,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (c) => (stdout += c));
+      child.stderr.on('data', (c) => (stderr += c));
+      child.on('exit', (code) => resolve({ code, stdout, stderr }));
+      setTimeout(() => child.kill('SIGTERM'), 30000);
+    });
+
+  console.log('[integration] CLI lists and mutates config through the live extension');
+  const lsEarly = await runCli(['ls']);
+  assert.equal(lsEarly.code, 0, `muster ls should succeed. stderr: ${lsEarly.stderr}`);
+  assert.ok(lsEarly.stdout.includes('smoke'), 'muster ls should list the smoke group');
+
+  // Config mutations (create/add/delete) — terminal-free, so they validate
+  // deterministically even if terminal rendering flakes later. Snapshot and
+  // restore the fixture so the test leaves it byte-identical.
+  const cfgPath = path.join(workspaceFolder.uri.fsPath, '.vscode', 'muster.json');
+  const originalCfg = fs.readFileSync(cfgPath, 'utf-8');
+  try {
+    const created = await runCli(['create', 'cli-made', '--command', 'echo hi', '--service', 'one', '--label', 'CLI Made']);
+    assert.equal(created.code, 0, `muster create should succeed. stderr: ${created.stderr}`);
+    let after = await runCli(['ls']);
+    assert.ok(after.stdout.includes('cli-made'), 'created group should appear in ls');
+    assert.ok(after.stdout.includes('one'), 'created service should appear in ls');
+
+    const added = await runCli(['add', 'cli-made', 'two', '--command', 'echo two', '--port', '4321']);
+    assert.equal(added.code, 0, `muster add should succeed. stderr: ${added.stderr}`);
+    after = await runCli(['ls']);
+    assert.ok(after.stdout.includes('two'), 'added service should appear in ls');
+    assert.ok(after.stdout.includes('4321'), 'added service port should appear in ls');
+
+    const dupe = await runCli(['create', 'cli-made', '--command', 'echo x']);
+    assert.notEqual(dupe.code, 0, 'creating a duplicate group id should fail');
+
+    const delSvc = await runCli(['delete', 'cli-made', 'two']);
+    assert.equal(delSvc.code, 0, `muster delete service should succeed. stderr: ${delSvc.stderr}`);
+    const delGroup = await runCli(['delete', 'cli-made']);
+    assert.equal(delGroup.code, 0, `muster delete group should succeed. stderr: ${delGroup.stderr}`);
+    after = await runCli(['ls']);
+    assert.ok(!after.stdout.includes('cli-made'), 'deleted group should be gone from ls');
+  } finally {
+    fs.writeFileSync(cfgPath, originalCfg);
+    await delay(300); // let the file-watcher settle
+  }
+
   console.log('[integration] opening Muster sidebar views');
   await vscode.commands.executeCommand('workbench.view.extension.muster');
   await vscode.commands.executeCommand('muster.groups.focus');
@@ -159,11 +216,41 @@ async function run() {
   } finally {
     await vscode.commands.executeCommand('muster.stopGroup', 'smoke');
   }
+  // Let this cycle's terminal finish disposing before the next cycle
+  // creates a new one — three back-to-back run/stop cycles of the same
+  // group is a stress test, not a realistic user pace.
+  await delay(500);
 
   console.log('[integration] verifying external MCP client (simulates Claude Code / Codex / Cursor)');
   const launcherPath = path.join(extension.extensionPath, 'bin', 'muster-mcp.cjs');
-  const externalEnv = { ...process.env, MUSTER_WORKSPACE: workspaceFolder.uri.fsPath };
-  delete externalEnv.MUSTER_IPC_PORT; // force the discovery-file path, like a truly separate process
+  // externalEnv (discovery-forced, no MUSTER_IPC_PORT) is defined near the top.
+
+  // The confirmation gate is on by default, so an agent run would block on
+  // a modal no test can click. Stub the dialog to record that it fired and
+  // return the given answer — this both unblocks the test and proves the
+  // gate is real, not just documented. If the vscode API object won't
+  // accept the stub, fall back to disabling the setting so the suite can
+  // never hang on a real modal (the unit tests still cover the gate logic).
+  const originalShowWarning = vscode.window.showWarningMessage;
+  let confirmCalls = [];
+  let stubAnswer = 'Allow';
+  const stub = (message) => {
+    confirmCalls.push(message);
+    return Promise.resolve(stubAnswer);
+  };
+  let stubInstalled = false;
+  try {
+    vscode.window.showWarningMessage = stub;
+    stubInstalled = vscode.window.showWarningMessage === stub;
+  } catch {
+    stubInstalled = false;
+  }
+  if (!stubInstalled) {
+    console.log('[integration] could not stub the dialog; disabling confirmation to avoid a hang');
+    await vscode.workspace
+      .getConfiguration('muster')
+      .update('confirmAgentActions', false, vscode.ConfigurationTarget.Global);
+  }
 
   const mcp = createMcpClient(process.execPath, [launcherPath], externalEnv);
   try {
@@ -182,9 +269,31 @@ async function run() {
       'external client should discover the smoke group through the live extension'
     );
 
+    if (stubInstalled) {
+      // Denial path: the tool reports an error (MCP convention: isError on a
+      // normal response, not a protocol rejection) and nothing starts.
+      console.log('[integration] agent run is blocked when the user denies confirmation');
+      stubAnswer = undefined; // dismiss / Escape
+      confirmCalls = [];
+      const denyResult = await mcp.callTool('run_server_group', { groupId: 'smoke' });
+      assert.equal(confirmCalls.length, 1, 'a confirmation dialog should have been shown for the agent run');
+      assert.match(confirmCalls[0], /AI agent wants to start/, 'dialog should describe the action');
+      assert.equal(denyResult.isError, true, 'a denied agent run should return an error result');
+      assert.match(denyResult.content[0].text, /denied/i, 'the error should say the action was denied');
+      const denied = parseToolText(await mcp.callTool('get_group_status', { groupId: 'smoke' }));
+      assert.notEqual(denied.services.logger, 'running', 'a denied run must not start the service');
+      stubAnswer = 'Allow';
+      confirmCalls = [];
+    }
+
+    // Approval path: agent run proceeds (confirmed via stub, or unprompted
+    // if confirmation was disabled as a fallback above).
     console.log('[integration] running smoke group via external MCP tool call');
     const terminalReopened = waitForTerminal('Muster: Smoke Logger');
     await mcp.callTool('run_server_group', { groupId: 'smoke' });
+    if (stubInstalled) {
+      assert.equal(confirmCalls.length, 1, 'approved run should also have prompted');
+    }
     await terminalReopened;
     await delay(1500);
 
@@ -197,29 +306,41 @@ async function run() {
 
     await mcp.callTool('stop_server_group', { groupId: 'smoke' });
   } finally {
+    vscode.window.showWarningMessage = originalShowWarning;
+    if (!stubInstalled) {
+      await vscode.workspace
+        .getConfiguration('muster')
+        .update('confirmAgentActions', undefined, vscode.ConfigurationTarget.Global);
+    }
     mcp.close();
   }
+  await delay(500);
 
-  console.log('[integration] verifying the muster CLI against the live extension');
-  const cliPath = path.join(extension.extensionPath, 'bin', 'muster.cjs');
-  const runCli = (args) =>
-    new Promise((resolve) => {
-      const child = require('node:child_process').spawn(process.execPath, [cliPath, ...args], {
-        env: externalEnv,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      let stdout = '';
-      let stderr = '';
-      child.stdout.on('data', (c) => (stdout += c));
-      child.stderr.on('data', (c) => (stderr += c));
-      child.on('exit', (code) => resolve({ code, stdout, stderr }));
-      setTimeout(() => child.kill('SIGTERM'), 30000);
+  console.log('[integration] installing the CLI onto PATH via command');
+  const installDir = process.env.MUSTER_CLI_INSTALL_DIR;
+  assert.ok(installDir, 'test runner should provide MUSTER_CLI_INSTALL_DIR');
+  await vscode.commands.executeCommand('muster.installCli');
+  const wrapperPath = path.join(installDir, 'muster');
+  assert.ok(fs.existsSync(wrapperPath), 'install command should write the muster wrapper');
+  assert.ok(
+    fs.readFileSync(wrapperPath, 'utf-8').includes('bin/muster.cjs'),
+    'wrapper should exec the extension launcher'
+  );
+  const wrapperRun = await new Promise((resolve) => {
+    const child = require('node:child_process').spawn(wrapperPath, ['help'], {
+      env: externalEnv,
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
+    let stdout = '';
+    child.stdout.on('data', (c) => (stdout += c));
+    child.on('exit', (code) => resolve({ code, stdout }));
+    child.on('error', (err) => resolve({ code: -1, stdout: String(err) }));
+    setTimeout(() => child.kill('SIGTERM'), 15000);
+  });
+  assert.equal(wrapperRun.code, 0, `installed wrapper should run. output: ${wrapperRun.stdout}`);
+  assert.ok(wrapperRun.stdout.includes('muster'), 'wrapper should print CLI help');
 
-  const ls = await runCli(['ls']);
-  assert.equal(ls.code, 0, `muster ls should succeed. stderr: ${ls.stderr}`);
-  assert.ok(ls.stdout.includes('smoke'), 'muster ls should list the smoke group');
-
+  console.log('[integration] verifying the muster CLI runs a group against the live extension');
   const terminalForCli = waitForTerminal('Muster: Smoke Logger');
   const runResult = await runCli(['run', 'smoke']);
   assert.equal(runResult.code, 0, `muster run should succeed. stderr: ${runResult.stderr}`);

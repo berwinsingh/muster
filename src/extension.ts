@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 
 import { loadMergedConfig } from './config/loader';
 import { getMusterWorkspaceFolder, hasWorkspaceConfigFile } from './config/workspaceFolder';
+import { deleteGroup, deleteService } from './config/mutate';
+import { readWritableWorkspaceConfig, saveWorkspaceConfig } from './config/writer';
+import { installCli, maybePromptCliInstall } from './installCli';
 import { startIpcServer } from './ipc/server';
 import { EventTracker } from './monitoring/eventTracker';
 import { registerMcpProvider } from './mcpProvider';
@@ -88,6 +91,7 @@ function watchWorkspaceConfig(context: vscode.ExtensionContext): void {
 function registerConfigCommands(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('muster.openConfig', () => openConfigEditor()),
+    vscode.commands.registerCommand('muster.installCli', () => installCli(context)),
     vscode.commands.registerCommand('muster.openVisualEditor', () =>
       openVisualConfigEditor(context, onConfigChanged)
     ),
@@ -104,8 +108,52 @@ function registerConfigCommands(context: vscode.ExtensionContext): void {
       } else {
         void openVisualConfigEditor(context, onConfigChanged);
       }
-    })
+    }),
+    vscode.commands.registerCommand('muster.deleteGroup', (item?: MusterTreeItem) =>
+      deleteGroupFromConfig(item?.groupId)
+    ),
+    vscode.commands.registerCommand('muster.deleteService', (item?: MusterTreeItem) =>
+      deleteServiceFromConfig(item?.groupId, item?.nodeId?.split(':')[1])
+    )
   );
+}
+
+async function deleteGroupFromConfig(groupId?: string): Promise<void> {
+  if (!groupId) return;
+  const folder = getMusterWorkspaceFolder();
+  if (!folder) return;
+  const choice = await vscode.window.showWarningMessage(
+    `Delete the Muster group "${groupId}"? This removes it from .vscode/muster.json.`,
+    { modal: true },
+    'Delete'
+  );
+  if (choice !== 'Delete') return;
+  try {
+    const config = await readWritableWorkspaceConfig(folder);
+    await saveWorkspaceConfig(folder, deleteGroup(config, groupId));
+    onConfigChanged();
+  } catch (err) {
+    void vscode.window.showErrorMessage(`Muster: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+async function deleteServiceFromConfig(groupId?: string, serviceId?: string): Promise<void> {
+  if (!groupId || !serviceId) return;
+  const folder = getMusterWorkspaceFolder();
+  if (!folder) return;
+  const choice = await vscode.window.showWarningMessage(
+    `Remove service "${serviceId}" from "${groupId}"?`,
+    { modal: true },
+    'Remove'
+  );
+  if (choice !== 'Remove') return;
+  try {
+    const config = await readWritableWorkspaceConfig(folder);
+    await saveWorkspaceConfig(folder, deleteService(config, groupId, serviceId));
+    onConfigChanged();
+  } catch (err) {
+    void vscode.window.showErrorMessage(`Muster: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -402,6 +450,13 @@ export function activate(context: vscode.ExtensionContext): void {
   } catch (err) {
     musterLogError('register runtime commands', err);
   }
+
+  // Fire-and-forget: never awaited, so a slow or unresolved PATH check or
+  // notification can't delay activation or hang anything waiting on it
+  // (this function itself included).
+  maybePromptCliInstall(context, hasWorkspaceConfigFile(getMusterWorkspaceFolder())).catch((err) =>
+    musterLogError('maybePromptCliInstall', err)
+  );
 
   musterLog('activate complete');
 }
