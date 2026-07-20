@@ -346,7 +346,7 @@
   }
   .tui .btn-chip .k { background: rgba(255, 180, 84, 0.15); color: var(--amber); padding: 2px 7px; }
   .tui .btn-chip .lbl { background: rgba(255,255,255,0.05); color: var(--muted); padding: 2px 8px; }
-  .cli-points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 28px; }
+  .cli-points { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 28px; }
   .cli-point h3 { font-size: 16.5px; font-weight: 600; margin-bottom: 6px; }
   .cli-point h3 code {
     font-family: var(--mono); font-size: 13px;
@@ -688,7 +688,7 @@
   <div class="wrap">
     <p class="sec-eyebrow reveal">Terminal native</p>
     <h2 class="reveal">The same stack, from any terminal</h2>
-    <p class="sec-sub reveal">Run your stack with <span style="font-family:var(--mono);font-size:0.85em">muster up</span> — no VS Code required: it reads your config and supervises the processes right in the terminal, Ctrl+C stops the whole tree. And when VS Code <em>is</em> open, the same CLI becomes a remote control: an interactive dashboard in the spirit of Claude Code and opencode, plus plain commands for scripts.</p>
+    <p class="sec-sub reveal">Run your stack with <span style="font-family:var(--mono);font-size:0.85em">muster up</span> — no VS Code required: it reads your config, supervises the processes itself, and opens this exact dashboard — status dots, per-service logs, hotkeys, mouse, command palette. Quit and the whole tree stops with it. When VS Code <em>is</em> open, the same CLI becomes a remote control for the extension; when piped or in CI it degrades to clean prefixed logs.</p>
 
     <div class="mock-outer" style="margin-top:44px; max-width: 860px;">
       <div class="window">
@@ -734,6 +734,10 @@
       <div class="cli-point reveal">
         <h3>Create, run, remove</h3>
         <p>Scaffold config, create and delete groups (<span style="font-family:var(--mono);font-size:0.9em">muster create</span>), stop or restart a single service without touching its siblings, follow and filter logs — from the terminal or the sidebar tree.</p>
+      </div>
+      <div class="cli-point reveal">
+        <h3>Standalone, same dashboard</h3>
+        <p><span style="font-family:var(--mono);font-size:0.9em">muster up</span> needs no editor at all — the supervisor runs in your terminal with this same UI, an activity feed on the group row, and a quit that tears down every process. No orphans, ever.</p>
       </div>
     </div>
   </div>

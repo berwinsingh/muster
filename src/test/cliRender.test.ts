@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test, describe } from 'node:test';
-import { buildRows, plainGroupList, renderRow, truncateAnsi } from '../cli/render';
+import { buildRows, plainGroupList, renderButtons, renderRow, truncateAnsi } from '../cli/render';
 import type { CliGroup, CliGroupStatus } from '../cli/client';
 
 const GROUPS: CliGroup[] = [
@@ -88,5 +88,16 @@ describe('cli rendering', () => {
     for (const expected of ['full-stack', 'api', ':8000', 'worker-only', 'celery -A app worker']) {
       assert.ok(text.includes(expected), `missing ${expected}`);
     }
+  });
+
+  test('button bar supports a custom quit label with matching hitbox', () => {
+    const { line, buttons } = renderButtons('dash', 200, 'quit (stops all)');
+    assert.ok(strip(line).includes('quit (stops all)'));
+    const quit = buttons.find((b) => b.key === 'q');
+    assert.ok(quit);
+    // hitbox spans " q " + " quit (stops all) " → key+label+4 columns
+    assert.equal(quit.x2 - quit.x1 + 1, 1 + 'quit (stops all)'.length + 4);
+    const defaultBar = renderButtons('dash', 200);
+    assert.ok(strip(defaultBar.line).includes(' quit '));
   });
 });
