@@ -1,11 +1,12 @@
 /**
- * The interactive `muster` dashboard: a full-screen terminal UI over the
- * extension's IPC API. Poll-driven (1s), zero deps — hand-rolled ANSI on
- * the alternate screen buffer. Operated three ways: hotkeys, mouse
+ * The interactive `muster` dashboard: a full-screen terminal UI over any
+ * DashboardSource — the extension's IPC API (remote) or a local headless
+ * Supervisor (`muster up`). Poll-driven (1s), zero deps — hand-rolled ANSI
+ * on the alternate screen buffer. Operated three ways: hotkeys, mouse
  * (click rows and footer buttons, scroll wheel), and a fuzzy command
  * palette (:) where you type what you want ("stop web").
  */
-import { CliGroupStatus, IpcClient } from './client';
+import type { CliGroup, CliGroupStatus } from './client';
 import { buildActions, matchActions, PaletteAction } from './palette';
 import {
   A,
@@ -14,8 +15,31 @@ import {
   renderButtons,
   renderHeader,
   renderRow,
+  truncateAnsi,
   Row,
 } from './render';
+
+/** What the dashboard needs from a backend; IpcClient satisfies this. */
+export interface DashboardSource {
+  readonly workspace: string;
+  groups(): Promise<CliGroup[]>;
+  status(groupId: string): Promise<CliGroupStatus>;
+  logs(groupId: string, serviceId: string, lines?: number): Promise<string[]>;
+  run(groupId: string, serviceId?: string): Promise<unknown>;
+  stop(groupId: string, serviceId?: string): Promise<unknown>;
+  restart(groupId: string, serviceId?: string): Promise<unknown>;
+}
+
+export type TuiOptions = {
+  /** Feed opened by `l` on a group row (the headless narrator log). */
+  groupFeedId?: string;
+  /** Quit button label ("quit (stops all)" when quitting tears down). */
+  quitLabel?: string;
+  /** Persistent activity line shown above the footer. */
+  statusLine?: () => string;
+  /** Awaited after the screen is restored, before exit (teardown). */
+  onQuit?: () => Promise<void>;
+};
 
 const ALT_ON = '\x1b[?1049h\x1b[?25l';
 const ALT_OFF = '\x1b[?25h\x1b[?1049l';
@@ -26,7 +50,7 @@ const MOUSE_EVENT = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])/;
 
 type Mode = 'dash' | 'filter' | 'logs' | 'palette';
 
-export async function runTui(client: IpcClient): Promise<void> {
+export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Promise<void> {
   let rows: Row[] = [];
   let selected = 0;
   let filter = '';
@@ -56,11 +80,11 @@ export async function runTui(client: IpcClient): Promise<void> {
 
   async function refresh(): Promise<void> {
     try {
-      const groups = await client.groups();
+      const groups = await source.groups();
       await Promise.all(
         groups.map(async (g) => {
           try {
-            statuses.set(g.id, await client.status(g.id));
+            statuses.set(g.id, await source.status(g.id));
           } catch {
             // group may not have run yet
           }
@@ -69,7 +93,7 @@ export async function runTui(client: IpcClient): Promise<void> {
       rows = buildRows(groups, statuses, filter);
       if (selected >= rows.length) selected = Math.max(0, rows.length - 1);
       if (mode === 'logs' && logsTarget && follow) {
-        logLines = await client.logs(logsTarget.groupId, logsTarget.serviceId, 500);
+        logLines = await source.logs(logsTarget.groupId, logsTarget.serviceId, 500);
       }
       connectionError = '';
     } catch (err) {
@@ -78,11 +102,12 @@ export async function runTui(client: IpcClient): Promise<void> {
   }
 
   function draw(): void {
-    const width = process.stdout.columns ?? 80;
-    const height = process.stdout.rows ?? 24;
+    // `||`, not `??`: some PTYs (tmux edge cases, CI) report 0×0.
+    const width = process.stdout.columns || 80;
+    const height = process.stdout.rows || 24;
     const out: string[] = [];
 
-    out.push(renderHeader(client.workspace, filter, width));
+    out.push(renderHeader(source.workspace, filter, width));
     out.push('');
 
     if (connectionError) {
@@ -132,6 +157,10 @@ export async function runTui(client: IpcClient): Promise<void> {
     }
 
     const footer: string[] = [];
+    if (opts.statusLine && mode !== 'filter' && mode !== 'palette') {
+      const activity = opts.statusLine();
+      if (activity) footer.push(truncateAnsi(`${A.dim}‣${A.reset} ${activity}`, width));
+    }
     if (flash) footer.push(`${A.amber}${flash}${A.reset}`);
     if (mode === 'filter') {
       const editing = filterReturnMode === 'logs' ? logFilter : filter;
@@ -141,7 +170,7 @@ export async function runTui(client: IpcClient): Promise<void> {
       footer.push(`${A.dim}↑↓ choose · enter run · esc cancel${A.reset}`);
       footerButtons = [];
     } else {
-      const bar = renderButtons(mode === 'logs' ? 'logs' : 'dash', width);
+      const bar = renderButtons(mode === 'logs' ? 'logs' : 'dash', width, opts.quitLabel);
       footer.push(bar.line);
       footerButtons = bar.buttons;
     }
@@ -162,7 +191,7 @@ export async function runTui(client: IpcClient): Promise<void> {
     flashTicks = 3;
     draw();
     try {
-      await client[action](groupId, serviceId);
+      await source[action](groupId, serviceId);
       flash = `${action} ${label} ✓`;
     } catch (err) {
       flash = `${action} ${label} failed: ${err instanceof Error ? err.message : err}`;
@@ -183,7 +212,7 @@ export async function runTui(client: IpcClient): Promise<void> {
     follow = true;
     logScroll = 0;
     logFilter = '';
-    logLines = await client.logs(groupId, serviceId, 500).catch(() => []);
+    logLines = await source.logs(groupId, serviceId, 500).catch(() => []);
   }
 
   async function executePaletteAction(action: PaletteAction): Promise<void> {
@@ -239,8 +268,8 @@ export async function runTui(client: IpcClient): Promise<void> {
     if (mode === 'dash') {
       const index = rowsStartIndex + (y - rowsTopY);
       if (index >= 0 && index < rows.length && y >= rowsTopY) {
-        if (index === selected && rows[index].kind === 'service') {
-          await onKey('l');
+        if (index === selected) {
+          await onKey('l'); // drill into logs (service, or group feed if any)
         } else {
           selected = index;
         }
@@ -268,7 +297,8 @@ export async function runTui(client: IpcClient): Promise<void> {
       if (key === '\x1b[A') { paletteIndex = Math.max(0, paletteIndex - 1); return; }
       if (key === '\x1b[B') { paletteIndex = Math.min(paletteMatches.length - 1, paletteIndex + 1); return; }
       if (key === '\x7f') { paletteQuery = paletteQuery.slice(0, -1); refreshMatches(); return; }
-      if (key >= ' ' && key.length === 1) { paletteQuery += key; refreshMatches(); return; }
+      // Multi-char chunks are pasted text; anything with ESC is a key sequence.
+      if (key >= ' ' && !key.includes('\x1b')) { paletteQuery += key; refreshMatches(); return; }
       return;
     }
 
@@ -281,7 +311,7 @@ export async function runTui(client: IpcClient): Promise<void> {
       if (key === '\r') mode = filterReturnMode;
       else if (key === '\x1b') { apply(''); mode = filterReturnMode; }
       else if (key === '\x7f') apply(current.slice(0, -1));
-      else if (key >= ' ' && key.length === 1) apply(current + key);
+      else if (key >= ' ' && !key.includes('\x1b')) apply(current + key);
       await refresh();
       return;
     }
@@ -329,6 +359,8 @@ export async function runTui(client: IpcClient): Promise<void> {
         const row = rows[selected];
         if (row?.kind === 'service') {
           await openLogs(row.group.id, row.serviceId, row.name);
+        } else if (row?.kind === 'group' && opts.groupFeedId) {
+          await openLogs(row.group.id, opts.groupFeedId, 'muster');
         }
         return;
       }
@@ -345,6 +377,18 @@ export async function runTui(client: IpcClient): Promise<void> {
     process.stdout.write(MOUSE_OFF + ALT_OFF);
   };
   process.on('exit', cleanup);
+
+  let quitting = false;
+  const quit = async (): Promise<void> => {
+    if (quitting) return;
+    quitting = true;
+    cleanup();
+    if (opts.onQuit) {
+      process.stdout.write(`${A.amber}[muster]${A.reset} shutting down…\n`);
+      await opts.onQuit();
+    }
+    process.exit(0);
+  };
 
   async function onInput(chunk: string): Promise<void> {
     // A chunk may carry several mouse events, a mouse event plus keys, or
@@ -369,12 +413,12 @@ export async function runTui(client: IpcClient): Promise<void> {
   }
 
   process.stdin.on('data', (chunk: string) => {
-    void onInput(chunk).then(() => {
+    void onInput(chunk).then(async () => {
       if (!running) {
-        cleanup();
-        process.exit(0);
+        await quit();
+        return;
       }
-      draw();
+      if (!quitting) draw();
     });
   });
 

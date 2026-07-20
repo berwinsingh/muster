@@ -124,7 +124,8 @@ export type Button = { key: string; label: string; x1: number; x2: number };
  */
 export function renderButtons(
   mode: 'dash' | 'logs',
-  width: number
+  width: number,
+  quitLabel = 'quit'
 ): { line: string; buttons: Button[] } {
   const defs: { key: string; label: string }[] =
     mode === 'dash'
@@ -135,13 +136,13 @@ export function renderButtons(
           { key: 'l', label: 'logs' },
           { key: '/', label: 'filter' },
           { key: ':', label: 'commands' },
-          { key: 'q', label: 'quit' },
+          { key: 'q', label: quitLabel },
         ]
       : [
           { key: 'f', label: 'follow' },
           { key: '/', label: 'filter' },
           { key: '\x1b', label: 'back' },
-          { key: 'q', label: 'quit' },
+          { key: 'q', label: quitLabel },
         ];
 
   const buttons: Button[] = [];

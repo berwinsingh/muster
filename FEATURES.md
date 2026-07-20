@@ -76,7 +76,7 @@ extension).
 
 | Command | What it does |
 |---------|--------------|
-| `muster up [group]` | **Standalone** — run a group right in the terminal, no VS Code required: same ordering/ready/hooks semantics, per-service prefixed logs, Ctrl+C stops the whole process tree |
+| `muster up [group]` | **Standalone** — run a group right in the terminal, no VS Code required: same ordering/ready/hooks semantics, and the **same interactive dashboard** as remote `muster` (hotkeys, mouse, palette, per-service logs) fed by the local supervisor. `q`/Ctrl+C stops the whole process tree. `--plain` (automatic when piped) streams flat prefixed logs instead |
 | `muster` | Interactive dashboard (TUI) |
 | `muster ls [--json]` | Groups, services, ports, and live status |
 | `muster run <group> [service]` | Start a group (or one service), wait for readiness, report `N/N running` |
@@ -96,16 +96,25 @@ alongside run/stop/restart/edit.
 
 ### The dashboard
 
+The same dashboard runs in both modes — remote (`muster`, driving the VS
+Code extension) and standalone (`muster up`, driving the local supervisor).
 Three ways to operate it:
 
 | Mode | How |
 |------|-----|
 | **Hotkeys** | `↑↓` select · `r` run · `s` stop · `x` restart (acts on the selected group *or* service) · `l` logs · `/` filter · `q` quit |
-| **Mouse** | Click a row to select, click the selected service again to open its logs, click the footer buttons, scroll wheel to move/scroll |
-| **Command palette** | `:` opens a fuzzy-matched list of every live action — type `stop web` to match `stop full-stack/web`, arrows choose, enter runs |
+| **Mouse** | Click a row to select, click the selected row again to drill into its logs, click the footer buttons, scroll wheel to move/scroll |
+| **Command palette** | `:` opens a fuzzy-matched list of every live action — type (or paste) `stop web` to match `stop full-stack/web`, arrows choose, enter runs |
 
 The log view follows output live (`f` toggles), scrolls with `↑↓`/wheel, and
-filters with `/` — matching lines only, with a no-match indicator.
+filters with `/` — matching lines only, with a no-match indicator. Restarted
+services keep their log history with a `— restarted —` divider.
+
+Standalone extras: an activity line above the footer narrates what the
+supervisor is doing (ready patterns, health checks, hooks), `l` on the
+*group* row opens the full muster activity feed, and the quit button reads
+`quit (stops all)` — leaving the dashboard tears the whole tree down, no
+orphans.
 
 ---
 

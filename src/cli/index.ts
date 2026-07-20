@@ -8,11 +8,16 @@
  */
 import { CliGroupStatus, IpcClient, NOT_RUNNING } from './client';
 import { findConfigRoot, loadHeadlessConfig } from './headlessConfig';
+import { LocalSource, MUSTER_FEED } from './localSource';
 import { A, plainGroupList, statusDot } from './render';
 import { Supervisor } from './supervisor';
 import { runTui } from './tui';
 
-/** `muster up [group]` — run a group standalone, no VS Code required. */
+/**
+ * `muster up [group]` — run a group standalone, no VS Code required.
+ * In a terminal this opens the same dashboard as remote `muster`, fed by
+ * the local supervisor; `--plain` (or a non-TTY) streams flat logs instead.
+ */
 async function runHeadless(rest: string[]): Promise<void> {
   const root = findConfigRoot(process.env.MUSTER_WORKSPACE ?? process.cwd());
   if (!root) {
@@ -25,20 +30,46 @@ async function runHeadless(rest: string[]): Promise<void> {
     fail('The config has no groups.');
   }
 
-  const groupId = rest[0] && !rest[0].startsWith('-') ? rest[0] : undefined;
+  const groupId = rest.find((a) => !a.startsWith('-'));
   const group = groupId ? groups.find((g) => g.id === groupId) : groups[0];
   if (!group) {
     fail(`Unknown group "${groupId}". Available: ${groups.map((g) => g.id).join(', ')}`);
   }
-  if (!groupId && groups.length > 1) {
-    process.stdout.write(
-      `${A.dim}Multiple groups found — running "${group.id}". Others: ${groups
-        .filter((g) => g.id !== group.id)
-        .map((g) => g.id)
-        .join(', ')}${A.reset}\n`
-    );
+  const othersNote =
+    !groupId && groups.length > 1
+      ? `Multiple groups found — running "${group.id}". Others: ${groups
+          .filter((g) => g.id !== group.id)
+          .map((g) => g.id)
+          .join(', ')}`
+      : '';
+
+  const wantPlain =
+    rest.includes('--plain') ||
+    rest.includes('--no-tui') ||
+    !process.stdout.isTTY ||
+    !process.stdin.isTTY;
+
+  if (!wantPlain) {
+    // Dashboard mode: the supervisor holds status + log buffers; the TUI
+    // renders them exactly like the remote dashboard. Quit tears down.
+    const supervisor = new Supervisor(group, root);
+    if (othersNote) supervisor.note(`${A.dim}${othersNote}${A.reset}`);
+    let teardown: Promise<void> | null = null;
+    const shutdown = (): Promise<void> => (teardown ??= supervisor.down());
+    process.on('SIGINT', () => void shutdown().then(() => process.exit(0)));
+    process.on('SIGTERM', () => void shutdown().then(() => process.exit(0)));
+
+    void supervisor.runGroup(); // progress streams via statuses + narrator
+    await runTui(new LocalSource(supervisor), {
+      groupFeedId: MUSTER_FEED,
+      quitLabel: 'quit (stops all)',
+      statusLine: () => supervisor.lastActivity,
+      onQuit: shutdown,
+    });
+    return;
   }
 
+  if (othersNote) process.stdout.write(`${A.dim}${othersNote}${A.reset}\n`);
   const supervisor = new Supervisor(group, root, (line) => process.stdout.write(line + '\n'));
   let shuttingDown = false;
   const shutdown = (): void => {
@@ -72,7 +103,9 @@ ${A.amber}${A.bold}muster${A.reset} — one click (or one command), full stack r
 
 Usage:
   muster up [group]          Run a group RIGHT HERE — no VS Code needed.
-                             Supervises the processes itself; Ctrl+C stops all.
+                             Opens the full dashboard (same hotkeys/mouse as
+                             \`muster\`); q or Ctrl+C stops everything.
+                             --plain streams flat logs instead (auto when piped).
   muster                     Interactive dashboard (TUI; drives the VS Code extension)
   muster ls [--json]         List groups, services, and live status
   muster run <group> [service]      Start a group (or one service) and wait

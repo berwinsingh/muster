@@ -147,13 +147,19 @@ Two modes, one command:
 **`muster up` — standalone, no VS Code needed.** Reads `.vscode/muster.json`
 (from the current directory or any parent) and runs the group right in your
 terminal: same dependency ordering, ready patterns, hooks, and `${...}`
-substitution as the extension. Logs stream prefixed per service; Ctrl+C
-stops the whole tree — no orphans.
+substitution as the extension. In a terminal it opens the **same interactive
+dashboard** as remote `muster` — live status dots, per-service logs (`l`),
+stop/start/restart one service or the whole group (`s`/`r`/`x`), mouse, the
+`:` command palette — fed straight from the local supervisor. Press `l` on
+the group row for the muster activity feed. `q` (or Ctrl+C) stops the whole
+tree — no orphans. When piped, in CI, or with `--plain`, it streams flat
+per-service prefixed logs instead.
 
 ```bash
 cd my-project
-muster up              # first group in the config
+muster up              # dashboard for the first group in the config
 muster up full-stack   # or a specific one
+muster up --plain      # flat log stream (automatic when piped)
 ```
 
 **Everything else — a remote control for the VS Code extension.** `run`,
