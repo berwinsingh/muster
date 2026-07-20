@@ -1,3 +1,4 @@
+import { LogLevel, filterLog, stripAnsi } from '../cli/logFilter';
 import { defaultWorkspaceHint, findDiscovery } from '../ipc/discovery';
 
 const NOT_RUNNING_MESSAGE =
@@ -74,4 +75,51 @@ export async function getServiceLogs(
   return ipcFetch(
     `/logs/${encodeURIComponent(groupId)}/${encodeURIComponent(serviceId)}?lines=${lines}`
   );
+}
+
+/**
+ * Logs for one service — or, with no serviceId, every service in the
+ * group tagged "[service] line" — filtered by severity and/or substring
+ * so agents can ask for exactly "the errors from the api service".
+ */
+export async function getFilteredServiceLogs(
+  groupId: string,
+  serviceId: string | undefined,
+  lines: number,
+  level: LogLevel,
+  contains?: string
+): Promise<unknown> {
+  const fetchOne = async (id: string): Promise<string[]> => {
+    const data = (await getServiceLogs(groupId, id, lines)) as { lines?: string[] };
+    return data.lines ?? [];
+  };
+
+  let raw: string[];
+  if (serviceId) {
+    raw = await fetchOne(serviceId);
+  } else {
+    const data = (await listServerGroups()) as {
+      groups?: { id: string; services: { id: string }[] }[];
+    };
+    const group = data.groups?.find((g) => g.id === groupId);
+    if (!group) {
+      throw new Error(`Unknown group "${groupId}"`);
+    }
+    raw = [];
+    for (const svc of group.services) {
+      const serviceLines = await fetchOne(svc.id).catch(() => [] as string[]);
+      raw.push(...serviceLines.map((line) => `[${svc.id}] ${line}`));
+    }
+  }
+
+  const filtered = filterLog(raw, level, contains ?? '').map(stripAnsi);
+  return {
+    groupId,
+    serviceId: serviceId ?? null,
+    level,
+    contains: contains ?? null,
+    totalLines: raw.length,
+    matchedLines: filtered.length,
+    lines: filtered,
+  };
 }

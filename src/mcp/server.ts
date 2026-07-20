@@ -11,6 +11,7 @@ import {
 import { z } from 'zod';
 import {
   describeConfig,
+  getFilteredServiceLogs,
   getGroupStatus,
   getServiceLogs,
   listServerGroups,
@@ -81,6 +82,37 @@ server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: 'get_service_logs',
+      description:
+        'Fetch recent log output from a running service (or every service in a group when serviceId is omitted — lines are tagged "[service] …"). Filter by severity (error/warn/info) and/or a substring to pull exactly the lines that matter, e.g. only the errors from one service.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          groupId: { type: 'string', description: 'Server group id' },
+          serviceId: {
+            type: 'string',
+            description: 'Service id within the group; omit for all services combined',
+          },
+          lines: {
+            type: 'number',
+            description: 'How many recent lines to fetch per service (default 100, max 500)',
+          },
+          level: {
+            type: 'string',
+            enum: ['all', 'error', 'warn', 'info'],
+            description: 'Only return lines classified at this severity (default all)',
+          },
+          contains: {
+            type: 'string',
+            description: 'Only return lines containing this substring (case-insensitive)',
+          },
+        },
+        required: ['groupId'],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    {
       name: 'describe_config',
       description: 'Return Muster config file paths and schema location',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
@@ -90,6 +122,14 @@ server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }));
 
 const GroupIdSchema = z.object({ groupId: z.string().min(1) });
+
+const LogsSchema = z.object({
+  groupId: z.string().min(1),
+  serviceId: z.string().min(1).optional(),
+  lines: z.number().int().min(1).max(500).default(100),
+  level: z.enum(['all', 'error', 'warn', 'info']).default('all'),
+  contains: z.string().optional(),
+});
 
 server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
@@ -118,6 +158,11 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'restart_server_group': {
         const { groupId } = GroupIdSchema.parse(args);
         const result = await restartServerGroup(groupId);
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      }
+      case 'get_service_logs': {
+        const { groupId, serviceId, lines, level, contains } = LogsSchema.parse(args);
+        const result = await getFilteredServiceLogs(groupId, serviceId, lines, level, contains);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
       case 'describe_config': {

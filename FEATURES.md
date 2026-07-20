@@ -83,16 +83,20 @@ extension).
 | `muster stop <group> [service]` | Stop a group or a single service |
 | `muster restart <group> [service]` | Restart a group or a single service |
 | `muster status <group>` | Per-service status |
-| `muster logs <group> <service> [-n N] [-f]` | Show or follow service output |
+| `muster logs <group> [service] [-n N] [-f] [--level error\|warn\|info]` | Show or follow output. Without a service: every service in the group, tagged `[service]`. `--level` keeps only lines classified at that severity |
 | `muster init` | Scaffold a starter `.vscode/muster.json` |
-| `muster create <group> --command "…"` | Create a group with a first service (`--label --service --name --cwd --port --layout --order`) |
-| `muster add <group> <service> --command "…"` | Add a service to a group (`--name --cwd --port`) |
+| `muster create <group> --command "…"` | Create a group with a first service (`--label --service --name --cwd --port --layout --order --no-detect`) — the service's environment (venv, `.nvmrc`) is detected and stored |
+| `muster add <group> <service> --command "…"` | Add a service to a group (`--name --cwd --port --no-detect`), with the same environment detection |
+| `muster edit <group> [service]` | Change group settings (`--label --layout --order`) or service settings (`--name --command --cwd --port/--no-port --venv/--no-venv --node-version/--no-node-version --detect`) |
 | `muster delete <group> [service]` | Remove a group, or one service |
+| `muster detect [group]` | Audit every service's environment: does the language need one, is it present, is it missing? Exits 1 when something needs fixing |
 
-Config writes route through the running extension, so the sidebar tree
-updates live and the same schema validation applies. In the tree itself,
-group and service rows now have **Delete** in their right-click menu,
-alongside run/stop/restart/edit.
+Config commands work **with or without VS Code**: when the extension is
+running they route through it, so the sidebar tree updates live; when it
+isn't, they read and write `.vscode/muster.json` directly with the same
+schema validation and id slugification. In the tree itself, group and
+service rows have **Delete** in their right-click menu, alongside
+run/stop/restart/edit.
 
 ### The dashboard
 
@@ -102,13 +106,17 @@ Three ways to operate it:
 
 | Mode | How |
 |------|-----|
-| **Hotkeys** | `↑↓` select · `r` run · `s` stop · `x` restart (acts on the selected group *or* service) · `l` logs · `/` filter · `q` quit |
+| **Hotkeys** | `↑↓` select · `r` run · `s` stop · `x` restart (acts on the selected group *or* service) · `l` logs · `a` all-services logs · `/` filter · `q` quit |
 | **Mouse** | Click a row to select, click the selected row again to drill into its logs, click the footer buttons, scroll wheel to move/scroll |
 | **Command palette** | `:` opens a fuzzy-matched list of every live action — type (or paste) `stop web` to match `stop full-stack/web`, arrows choose, enter runs |
 
 The log view follows output live (`f` toggles), scrolls with `↑↓`/wheel, and
-filters with `/` — matching lines only, with a no-match indicator. Restarted
-services keep their log history with a `— restarted —` divider.
+filters three composable ways: `v` cycles severity (all → errors → warnings
+→ info), `/` adds a text filter, and — in the combined all-services view
+(`a`, or `l` on a group row) — `tab` cycles focus between services, whose
+lines are tagged `[service]` in stable colors. A no-match indicator shows
+what the filters removed. Restarted services keep their log history with a
+`— restarted —` divider.
 
 Standalone extras: an activity line above the footer narrates what the
 supervisor is doing (ready patterns, health checks, hooks), `l` on the
@@ -138,7 +146,7 @@ Muster exposes a native **MCP server** so AI agents in Cursor (and other MCP cli
 2. Agent calls `list_server_groups` to discover available groups
 3. Agent calls `run_server_group({ "groupId": "dev" })` — user confirms in VS Code
 4. Agent polls `get_group_status` until services reach `running`
-5. Agent reads logs via `muster://logs/dev/api` resource if errors appear
+5. Agent calls `get_service_logs({ "groupId": "dev", "serviceId": "api", "level": "error" })` if problems appear — or omits `serviceId` to sweep the whole group
 6. Agent calls `stop_server_group` or `restart_server_group` when done
 
 ---
@@ -152,6 +160,7 @@ Detailed reference for MCP tools exposed to agents.
 | `list_server_groups` | Read-only | None | List all merged groups and their services |
 | `get_group_status` | Read-only | None | Get per-service status (`idle`, `starting`, `running`, `failed`, `stopped`) and group state |
 | `describe_config` | Read-only | None | Return config file paths, schema location, and IPC port |
+| `get_service_logs` | Read-only | None | Recent output for one service — or every service in a group tagged `[service]` — filtered by `level` (`error`/`warn`/`info`) and/or `contains` substring; reports `totalLines` vs `matchedLines` |
 | `run_server_group` | Write | **User confirmation required** | Start all services in a group |
 | `stop_server_group` | Write | **User confirmation required** | Stop all services in a group |
 | `restart_server_group` | Write | **User confirmation required** | Restart all services in a group |

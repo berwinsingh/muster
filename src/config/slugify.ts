@@ -1,5 +1,5 @@
 import { GroupConfig } from './schema';
-import { WritableWorkspaceConfig } from './writer';
+import type { WritableWorkspaceConfig } from './payload';
 
 const VALID_ID = /^[a-z0-9][a-z0-9-]*$/;
 

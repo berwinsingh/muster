@@ -2,7 +2,14 @@ import * as http from 'http';
 import * as vscode from 'vscode';
 import { loadMergedConfig, loadMergedConfigFromPaths } from '../config/loader';
 import { effectiveCommand } from '../config/schema';
-import { addService, createGroup, deleteGroup, deleteService } from '../config/mutate';
+import {
+  addService,
+  createGroup,
+  deleteGroup,
+  deleteService,
+  updateGroup,
+  updateService,
+} from '../config/mutate';
 import {
   getExampleConfig,
   readWritableWorkspaceConfig,
@@ -180,6 +187,12 @@ export function startIpcServer(
                 break;
               case '/config/add-service':
                 next = addService(current, String(b.groupId), b.service as never);
+                break;
+              case '/config/update-group':
+                next = updateGroup(current, String(b.groupId), b.patch as never);
+                break;
+              case '/config/update-service':
+                next = updateService(current, String(b.groupId), String(b.serviceId), b.patch as never);
                 break;
               case '/config/delete-group':
                 next = deleteGroup(current, String(b.groupId));

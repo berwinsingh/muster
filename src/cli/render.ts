@@ -117,6 +117,20 @@ export function renderHeader(workspace: string, filter: string, width: number): 
 
 export type Button = { key: string; label: string; x1: number; x2: number };
 
+/** Colors used to tag services in combined log views (index-stable). */
+export const SERVICE_COLORS = [A.green, A.blue, A.yellow, A.amber];
+
+export function serviceColor(index: number): string {
+  return SERVICE_COLORS[Math.max(0, index) % SERVICE_COLORS.length];
+}
+
+export type LogsBarState = {
+  /** Current level filter label ("all", "errors", …). */
+  level: string;
+  /** Service focus label for combined views; undefined = single-service view. */
+  focus?: string;
+};
+
 /**
  * Bottom button bar: every entry is both a keyboard hint and a clickable
  * hitbox. Returns the rendered line plus 1-based column ranges per button
@@ -125,7 +139,8 @@ export type Button = { key: string; label: string; x1: number; x2: number };
 export function renderButtons(
   mode: 'dash' | 'logs',
   width: number,
-  quitLabel = 'quit'
+  quitLabel = 'quit',
+  logs?: LogsBarState
 ): { line: string; buttons: Button[] } {
   const defs: { key: string; label: string }[] =
     mode === 'dash'
@@ -134,12 +149,15 @@ export function renderButtons(
           { key: 's', label: 'stop' },
           { key: 'x', label: 'restart' },
           { key: 'l', label: 'logs' },
+          { key: 'a', label: 'all logs' },
           { key: '/', label: 'filter' },
           { key: ':', label: 'commands' },
           { key: 'q', label: quitLabel },
         ]
       : [
           { key: 'f', label: 'follow' },
+          { key: 'v', label: `level: ${logs?.level ?? 'all'}` },
+          ...(logs?.focus !== undefined ? [{ key: '\t', label: `service: ${logs.focus}` }] : []),
           { key: '/', label: 'filter' },
           { key: '\x1b', label: 'back' },
           { key: 'q', label: quitLabel },
@@ -149,7 +167,7 @@ export function renderButtons(
   let line = '';
   let col = 1;
   for (const def of defs) {
-    const keyText = def.key === '\x1b' ? 'esc' : def.key;
+    const keyText = def.key === '\x1b' ? 'esc' : def.key === '\t' ? 'tab' : def.key;
     // Visible cells: " key " + " label " → key+2 plus label+2 columns.
     const visible = keyText.length + def.label.length + 4;
     const x1 = col;

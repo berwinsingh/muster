@@ -8,7 +8,7 @@ const PYTHON_CMD_PATTERN =
   /\b(uvicorn|python3?|celery|django|flask|poetry|pipenv|gunicorn|hypercorn|fastapi)\b/i;
 const NODE_CMD_PATTERN = /\b(npm|pnpm|yarn|node|bun|npx|tsx|vite)\b/i;
 
-function isValidVenvDir(venvPath: string): boolean {
+export function isValidVenvDir(venvPath: string): boolean {
   try {
     if (!fs.existsSync(venvPath) || !fs.statSync(venvPath).isDirectory()) {
       return false;
@@ -22,7 +22,7 @@ function isValidVenvDir(venvPath: string): boolean {
   }
 }
 
-function hasPythonProjectMarkers(cwd: string): boolean {
+export function hasPythonProjectMarkers(cwd: string): boolean {
   return (
     fs.existsSync(path.join(cwd, 'pyproject.toml')) ||
     fs.existsSync(path.join(cwd, 'requirements.txt')) ||
@@ -145,7 +145,13 @@ export function suggestPrependForService(
     }
   }
 
-  const nodeVersion = service.node?.version ?? nodeRuntime.nvmrc ?? nodeRuntime.engines;
+  // engines is usually a semver *range* (">=18", "^20 || ^22") — only a
+  // concrete version can safely become an `nvm use` argument.
+  const concreteEngines =
+    nodeRuntime.engines && /^v?\d+(\.\d+){0,2}$/.test(nodeRuntime.engines.trim())
+      ? nodeRuntime.engines.trim()
+      : undefined;
+  const nodeVersion = service.node?.version ?? nodeRuntime.nvmrc ?? concreteEngines;
   if (nodeVersion && isNode) {
     const nvmCmd = `nvm use ${nodeVersion.replace(/^v/, '')}`;
     if (!prepend.some((p) => p.includes('nvm use'))) {

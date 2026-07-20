@@ -86,6 +86,14 @@ export class IpcClient {
     return this.request('/config/add-service', 'POST', { groupId, service });
   }
 
+  updateGroup(groupId: string, patch: unknown): Promise<unknown> {
+    return this.request('/config/update-group', 'POST', { groupId, patch });
+  }
+
+  updateService(groupId: string, serviceId: string, patch: unknown): Promise<unknown> {
+    return this.request('/config/update-service', 'POST', { groupId, serviceId, patch });
+  }
+
   deleteGroup(groupId: string): Promise<unknown> {
     return this.request('/config/delete-group', 'POST', { groupId });
   }

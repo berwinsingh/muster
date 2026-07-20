@@ -162,8 +162,20 @@ muster up full-stack   # or a specific one
 muster up --plain      # flat log stream (automatic when piped)
 ```
 
-**Everything else — a remote control for the VS Code extension.** `run`,
-`stop`, `ls`, `logs`, the TUI dashboard, and config commands drive the
+`muster up` also detects each service's environment: Python venvs
+(`.venv`/`venv`/`env`) are activated automatically, `.nvmrc` node pins are
+applied through nvm (best-effort — a machine without nvm or the pinned
+version falls back to the PATH node with a visible note), and services that
+need neither run untouched. `--no-detect` opts out.
+
+**Config commands work everywhere.** `init`, `create`, `add`, `edit`,
+`delete`, `detect`, and `ls` never require VS Code: with the extension
+running they route through it (so the sidebar refreshes live); without it
+they read and write `.vscode/muster.json` directly, validated by the same
+schema.
+
+**Lifecycle commands — a remote control for the VS Code extension.** `run`,
+`stop`, `restart`, `status`, `logs`, and the default TUI dashboard drive the
 extension over localhost, so groups run in visible VS Code terminals with
 the trust model applied. These need VS Code (or Cursor) open with Muster
 active. Get `muster` on your PATH however's easiest:
@@ -187,29 +199,45 @@ muster              # interactive TUI dashboard
 muster ls           # groups + services + live status (add --json for scripting)
 muster run full-stack
 muster stop full-stack api        # stop just one service
-muster logs full-stack api -f
+muster logs full-stack api -f --level error   # follow one service, errors only
+muster logs full-stack --level warn           # whole group, lines tagged [service]
 ```
 
-Manage config from the terminal too — no need to open the editor:
+Manage config from the terminal too — no need to open the editor (these
+work with or without VS Code):
 
 ```bash
 muster init                                   # scaffold a starter .vscode/muster.json
 muster create api --command "npm run dev" --port 4000 --label "API"
 muster add api worker --command "node worker.js"   # add a service to a group
+muster edit api --label "Backend" --order sequence # change group settings
+muster edit api worker --port 5000 --venv .venv    # change service settings
 muster delete api worker                      # remove a service
 muster delete api                             # remove the whole group
+muster detect                                 # audit environments: venv/node
+                                              # needed? present? missing?
 ```
 
+`create` and `add` detect the service's environment as they write it:
+a found venv or `.nvmrc` is stored in the config, a Python project with
+no venv gets a clear warning, and non-Python/Node commands are left alone.
+
 The dashboard is operated three ways: hotkeys (`r`/`s`/`x` act on the
-selected group *or* service, `l` logs, `/` filter), the mouse (click
-rows to select, click the footer buttons, scroll wheel), or the
-command palette — press `:` and type what you want (`stop web` fuzzy-
-matches `stop split-demo/web`, enter runs it). In the sidebar tree,
+selected group *or* service, `l` logs, `a` all-services logs, `/` filter),
+the mouse (click rows to select, click the footer buttons, scroll wheel),
+or the command palette — press `:` and type what you want (`stop web`
+fuzzy-matches `stop split-demo/web`, enter runs it). In the sidebar tree,
 right-click a group or service for run/stop/edit/**delete**.
+
+The log view filters like a real log tool: `v` cycles severity
+(all → errors → warnings → info), `tab` cycles per-service focus in the
+combined view, `/` adds a text filter, and all three compose. The same
+severity classifier backs `muster logs --level` and the MCP
+`get_service_logs` tool, so humans and agents see the same triage.
 
 ## MCP integration
 
-Muster exposes MCP tools for AI agents to list groups, run/stop services, and read terminal output. Existing JSON config and MCP tools remain fully compatible.
+Muster exposes MCP tools for AI agents to list groups, run/stop services, and read terminal output — including `get_service_logs` with severity (`error`/`warn`/`info`) and substring filters, per service or across a whole group with `[service]` tags, so an agent can pull exactly "the errors from api" instead of dumping every line. Existing JSON config and MCP tools remain fully compatible.
 
 Agents inside VS Code and Cursor pick the server up automatically. Terminal agents connect via the launcher (VS Code must be open with Muster activated):
 

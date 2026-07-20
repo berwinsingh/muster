@@ -7,9 +7,12 @@
  * callback streams the same lines for plain-log mode.
  */
 import * as cp from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { GroupConfig, ServiceConfig, effectiveCommand } from '../config/schema';
 import { buildServiceEnv } from '../config/env';
-import { buildPrependCommands } from '../config/runtimeDetect';
+import { buildPrependCommands, suggestPrependForService } from '../config/runtimeDetect';
 import { runHooks } from '../orchestration/hooks';
 import {
   LineBuffer,
@@ -41,6 +44,22 @@ function shellFor(): { shell: string; flag: string } {
     : { shell: '/bin/bash', flag: '-lc' };
 }
 
+/**
+ * nvm is a shell function, not a binary — and non-interactive `bash -lc`
+ * skips the .bashrc lines that source it. Find nvm.sh so prepends can
+ * source it explicitly; null when nvm simply isn't installed.
+ */
+function findNvmSh(): string | null {
+  const candidates = [
+    process.env.NVM_DIR ? path.join(process.env.NVM_DIR, 'nvm.sh') : null,
+    path.join(os.homedir(), '.nvm', 'nvm.sh'),
+  ];
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
 export class Supervisor {
   private readonly running = new Map<string, Running>();
   private readonly narratorBuf = newLineBuffer();
@@ -50,7 +69,9 @@ export class Supervisor {
   constructor(
     readonly group: GroupConfig,
     readonly root: string,
-    private readonly echo?: (line: string) => void
+    private readonly echo?: (line: string) => void,
+    /** Auto-detect venvs / node pins in each service's cwd (off via --no-detect). */
+    private readonly detect = true
   ) {}
 
   private prefix(serviceId: string): string {
@@ -70,7 +91,45 @@ export class Supervisor {
   }
 
   private spawnService(service: ServiceConfig): Running {
-    const prepend = buildPrependCommands(service);
+    let prepend: string[];
+    if (this.detect) {
+      // Configured python/node settings win; detection fills the gaps from
+      // what actually exists in the service's cwd (venv dirs, .nvmrc).
+      const suggestion = suggestPrependForService(service, service.cwd ?? this.root);
+      const explicit = new Set(buildPrependCommands(service));
+      prepend = suggestion.prepend;
+      for (const cmd of prepend) {
+        if (!explicit.has(cmd)) {
+          this.muster(`${A.dim}env: ${service.id} · auto-detected → ${cmd}${A.reset}`);
+        }
+      }
+      if (suggestion.warning) {
+        this.muster(`${A.yellow}⚠ ${service.id}: ${suggestion.warning}${A.reset}`);
+      }
+    } else {
+      prepend = buildPrependCommands(service);
+    }
+
+    // `nvm` is a shell function that non-interactive shells don't have.
+    // Source nvm.sh explicitly when it exists, and treat the version
+    // switch as best-effort: a missing nvm install or an uninstalled
+    // version falls back to the PATH node with a visible log line rather
+    // than killing the service ("nvm: command not found", exit 127).
+    if (process.platform !== 'win32') {
+      prepend = prepend.flatMap((cmd) => {
+        if (!/^nvm use\b/.test(cmd.trim())) return [cmd];
+        const nvmSh = findNvmSh();
+        if (!nvmSh) {
+          this.muster(
+            `${A.yellow}⚠ ${service.id}: nvm not installed — skipping "${cmd}", using the node on PATH${A.reset}`
+          );
+          return [];
+        }
+        return [
+          `{ \\. "${nvmSh}" && ${cmd}; } >/dev/null 2>&1 || echo "[muster] ${cmd} failed - continuing with $(node --version 2>/dev/null || echo 'no') node from PATH"`,
+        ];
+      });
+    }
     const main = effectiveCommand(service);
     const command = prepend.length ? [...prepend, main].join(' && ') : main;
     const { shell, flag } = shellFor();
