@@ -6,7 +6,7 @@
   "homepage": "https://github.com/berwinsingh/muster",
   "repository": {
     "type": "git",
-    "url": "https://github.com/berwinsingh/muster.git",
+    "url": "git+https://github.com/berwinsingh/muster.git",
     "directory": "packages/muster-cli"
   },
   "bugs": "https://github.com/berwinsingh/muster/issues",
@@ -28,8 +28,8 @@
     "win32"
   ],
   "bin": {
-    "muster": "./bin/muster.cjs",
-    "muster-mcp": "./bin/muster-mcp.cjs"
+    "muster": "bin/muster.cjs",
+    "muster-mcp": "bin/muster-mcp.cjs"
   },
   "files": [
     "bin",
