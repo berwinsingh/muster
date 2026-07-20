@@ -92,12 +92,15 @@ tell the user to open the workspace in VS Code/Cursor with Muster installed,
 then retry. Do not fall back to running the service commands yourself in a
 shell.
 
-Registering the server manually (outside the plugin):
+Registering the server manually (outside the plugin) — after
+`npm install -g muster-cli`, `muster-mcp` is already on PATH:
 
 ```
-claude mcp add muster -- node <repo-or-extension-path>/bin/muster-mcp.cjs
-codex mcp add muster -- node <repo-or-extension-path>/bin/muster-mcp.cjs
+claude mcp add muster -- muster-mcp
+codex mcp add muster -- muster-mcp
 ```
+
+From a repo checkout instead: `claude mcp add muster -- node <path>/bin/muster-mcp.cjs`.
 
 ## Fallback: VS Code commands
 

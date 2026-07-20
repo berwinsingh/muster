@@ -29,6 +29,12 @@
     "color": "#0b0d10",
     "theme": "dark"
   },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Server groups can be viewed in untrusted workspaces. Running, stopping, or restarting them requires trusting the folder."
+    }
+  },
   "icon": "media/icon.png",
   "activationEvents": [
     "onStartupFinished",
@@ -125,6 +131,24 @@
         "title": "Edit Group",
         "category": "Muster",
         "icon": "$(edit)"
+      },
+      {
+        "command": "muster.deleteGroup",
+        "title": "Delete Group",
+        "category": "Muster",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "muster.deleteService",
+        "title": "Remove Service",
+        "category": "Muster",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "muster.installCli",
+        "title": "Install 'muster' Command in PATH",
+        "category": "Muster",
+        "icon": "$(terminal)"
       }
     ],
     "viewsWelcome": [
@@ -195,6 +219,18 @@
           "when": "true"
         },
         {
+          "command": "muster.installCli",
+          "when": "true"
+        },
+        {
+          "command": "muster.deleteGroup",
+          "when": "false"
+        },
+        {
+          "command": "muster.deleteService",
+          "when": "false"
+        },
+        {
           "command": "muster.runGroupFromTree",
           "when": "false"
         },
@@ -262,6 +298,16 @@
           "command": "muster.editGroup",
           "when": "view == muster.groups && viewItem == group",
           "group": "1_edit@1"
+        },
+        {
+          "command": "muster.deleteGroup",
+          "when": "view == muster.groups && viewItem == group",
+          "group": "1_edit@2"
+        },
+        {
+          "command": "muster.deleteService",
+          "when": "view == muster.groups && viewItem == service",
+          "group": "1_edit@1"
         }
       ]
     },
@@ -288,6 +334,11 @@
           "default": true,
           "description": "Show the Muster orchestrator terminal that narrates group startup: launches, ready checks, dependency order, and final status"
         },
+        "muster.confirmAgentActions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require confirmation before an AI agent (via MCP) can start, stop, or restart a group. Does not affect the sidebar, command palette, or the muster CLI — those are direct user actions."
+        },
         "muster.allowExternalCwd": {
           "type": "boolean",
           "default": false,
@@ -304,6 +355,7 @@
     "package": "npm run prepare-icons && npm run compile && vsce package",
     "test": "npm run compile:test && node --require ./src/test/vscode-shim.cjs --test dist-test/**/*.test.js",
     "test:integration": "npm run compile && node scripts/run-integration-tests.cjs",
+    "build:npm-package": "npm run compile && node scripts/build-npm-package.mjs",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {

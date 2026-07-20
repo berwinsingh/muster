@@ -53,6 +53,10 @@ async function waitForShellIntegration(
   });
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function executeTerminalCommand(
   terminal: vscode.Terminal,
   command: string
@@ -62,6 +66,14 @@ export async function executeTerminalCommand(
     shellIntegration.executeCommand(command);
     return;
   }
+  // Without shell integration, sendText goes straight through xterm's
+  // scrollToBottom, which reads the renderer's computed dimensions — on a
+  // terminal whose view hasn't finished its first layout pass yet (freshly
+  // created, or created while another terminal is being torn down during a
+  // fast restart), those dimensions are still unset and VS Code throws.
+  // One tick is enough for the layout pass to complete; it's not a fixed
+  // wait for anything slower, so it doesn't add meaningful launch latency.
+  await wait(120);
   terminal.sendText(command, true);
 }
 

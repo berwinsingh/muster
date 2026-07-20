@@ -48,16 +48,18 @@ export async function getGroupStatus(groupId: string): Promise<unknown> {
   return ipcFetch(`/status/${encodeURIComponent(groupId)}`);
 }
 
+// source: 'agent' marks these as agent-initiated so the extension prompts
+// for confirmation before running. The CLI omits it (direct user intent).
 export async function runServerGroup(groupId: string): Promise<unknown> {
-  return ipcFetch('/run', 'POST', { groupId });
+  return ipcFetch('/run', 'POST', { groupId, source: 'agent' });
 }
 
 export async function stopServerGroup(groupId: string): Promise<unknown> {
-  return ipcFetch('/stop', 'POST', { groupId });
+  return ipcFetch('/stop', 'POST', { groupId, source: 'agent' });
 }
 
 export async function restartServerGroup(groupId: string): Promise<unknown> {
-  return ipcFetch('/restart', 'POST', { groupId });
+  return ipcFetch('/restart', 'POST', { groupId, source: 'agent' });
 }
 
 export async function describeConfig(): Promise<unknown> {

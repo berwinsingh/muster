@@ -2,6 +2,13 @@ import * as http from 'http';
 import * as vscode from 'vscode';
 import { loadMergedConfig, loadMergedConfigFromPaths } from '../config/loader';
 import { effectiveCommand } from '../config/schema';
+import { addService, createGroup, deleteGroup, deleteService } from '../config/mutate';
+import {
+  getExampleConfig,
+  readWritableWorkspaceConfig,
+  saveWorkspaceConfig,
+} from '../config/writer';
+import { ActionSource, confirmationMessage, shouldConfirmAgentAction } from './confirm';
 import { GroupRunner } from '../orchestration/groupRunner';
 import { ProcessTracker } from '../orchestration/processTracker';
 import { getUserProfilesPath, getWorkspaceConfigPath } from '../config/paths';
@@ -122,8 +129,82 @@ export function startIpcServer(
             jsonResponse(res, 400, { error: 'groupId required' });
             return;
           }
+
+          // Agent-initiated writes wait for the human. Modal so it can't be
+          // missed; "Allow" is the only affirmative — dismiss/Escape denies.
+          const settingEnabled = vscode.workspace
+            .getConfiguration('muster')
+            .get<boolean>('confirmAgentActions', true);
+          if (shouldConfirmAgentAction(body.source as ActionSource, settingEnabled)) {
+            const choice = await vscode.window.showWarningMessage(
+              confirmationMessage(url.pathname, groupId, body.serviceId || undefined),
+              {
+                modal: true,
+                detail:
+                  'Allow this action? Turn off agent confirmations in Settings → muster.confirmAgentActions.',
+              },
+              'Allow'
+            );
+            if (choice !== 'Allow') {
+              jsonResponse(res, 403, { error: 'User denied the agent action' });
+              return;
+            }
+          }
+
           await action(groupId, body.serviceId || undefined);
           jsonResponse(res, 200, { ok: true, groupId, serviceId: body.serviceId });
+          return;
+        }
+
+        // Config mutations (create/add/delete/init). Direct user intent from
+        // the CLI — routed through the extension so the write goes through
+        // the same validating writer and the tree refreshes live via the
+        // file watcher. Unknown groups/dupes throw and become a 400.
+        if (url.pathname.startsWith('/config/')) {
+          if (!vscode.workspace.isTrusted) {
+            jsonResponse(res, 403, { error: 'Workspace is not trusted' });
+            return;
+          }
+          const folder = vscode.workspace.workspaceFolders?.[0];
+          if (!folder) {
+            jsonResponse(res, 400, { error: 'No workspace folder open' });
+            return;
+          }
+          try {
+            const current = await readWritableWorkspaceConfig(folder);
+            let next = current;
+            const b = body as Record<string, unknown>;
+            switch (url.pathname) {
+              case '/config/create-group':
+                next = createGroup(current, b as never);
+                break;
+              case '/config/add-service':
+                next = addService(current, String(b.groupId), b.service as never);
+                break;
+              case '/config/delete-group':
+                next = deleteGroup(current, String(b.groupId));
+                break;
+              case '/config/delete-service':
+                next = deleteService(current, String(b.groupId), String(b.serviceId));
+                break;
+              case '/config/init':
+                if (current.groups.length > 0) {
+                  jsonResponse(res, 400, {
+                    error: 'Config already has groups — nothing to initialize',
+                  });
+                  return;
+                }
+                next = getExampleConfig();
+                break;
+              default:
+                jsonResponse(res, 404, { error: 'Not found' });
+                return;
+            }
+            await saveWorkspaceConfig(folder, next);
+            jsonResponse(res, 200, { ok: true, groups: next.groups.map((g) => g.id) });
+          } catch (err) {
+            jsonResponse(res, 400, { error: err instanceof Error ? err.message : String(err) });
+          }
           return;
         }
       }

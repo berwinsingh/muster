@@ -77,4 +77,24 @@ export class IpcClient {
   restart(groupId: string, serviceId?: string): Promise<unknown> {
     return this.request('/restart', 'POST', { groupId, ...(serviceId ? { serviceId } : {}) });
   }
+
+  createGroup(input: unknown): Promise<unknown> {
+    return this.request('/config/create-group', 'POST', input);
+  }
+
+  addService(groupId: string, service: unknown): Promise<unknown> {
+    return this.request('/config/add-service', 'POST', { groupId, service });
+  }
+
+  deleteGroup(groupId: string): Promise<unknown> {
+    return this.request('/config/delete-group', 'POST', { groupId });
+  }
+
+  deleteService(groupId: string, serviceId: string): Promise<unknown> {
+    return this.request('/config/delete-service', 'POST', { groupId, serviceId });
+  }
+
+  initConfig(): Promise<unknown> {
+    return this.request('/config/init', 'POST', {});
+  }
 }
