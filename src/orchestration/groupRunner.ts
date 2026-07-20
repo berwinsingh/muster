@@ -222,6 +222,25 @@ export class GroupRunner {
     }
   }
 
+  async stopService(groupId: string, serviceId: string): Promise<void> {
+    const config = this.getConfig();
+    const group = findGroup(config, groupId);
+    if (!group) {
+      throw new Error(`Unknown group: ${groupId}`);
+    }
+    if (!group.services.some((s) => s.id === serviceId)) {
+      throw new Error(`Unknown service: ${serviceId}`);
+    }
+    this.narrator?.writeLine(formatStopping(`${groupId}/${serviceId}`));
+    await this.tracker.stopGroup(groupId, [serviceId]);
+    this.narrator?.writeLine(formatStopped(`${groupId}/${serviceId}`));
+  }
+
+  async restartService(groupId: string, serviceId: string): Promise<void> {
+    await this.stopService(groupId, serviceId);
+    await this.runService(groupId, serviceId);
+  }
+
   async stopGroup(groupId: string, removeFromRunning = true): Promise<void> {
     const config = this.getConfig();
     const group = findGroup(config, groupId);

@@ -102,22 +102,17 @@ export function startIpcServer(
         const bodyRaw = await readBody(req);
         const body = bodyRaw ? (JSON.parse(bodyRaw) as Record<string, string>) : {};
 
-        if (url.pathname === '/run') {
-          if (!vscode.workspace.isTrusted) {
-            jsonResponse(res, 403, { error: 'Workspace is not trusted' });
-            return;
-          }
-          const groupId = body.groupId;
-          if (!groupId) {
-            jsonResponse(res, 400, { error: 'groupId required' });
-            return;
-          }
-          await runner.runGroup(groupId);
-          jsonResponse(res, 200, { ok: true, groupId });
-          return;
-        }
+        const lifecycle: Record<string, (groupId: string, serviceId?: string) => Promise<void>> = {
+          '/run': (groupId, serviceId) =>
+            serviceId ? runner.runService(groupId, serviceId) : runner.runGroup(groupId),
+          '/stop': (groupId, serviceId) =>
+            serviceId ? runner.stopService(groupId, serviceId) : runner.stopGroup(groupId),
+          '/restart': (groupId, serviceId) =>
+            serviceId ? runner.restartService(groupId, serviceId) : runner.restartGroup(groupId),
+        };
 
-        if (url.pathname === '/stop') {
+        const action = lifecycle[url.pathname];
+        if (action) {
           if (!vscode.workspace.isTrusted) {
             jsonResponse(res, 403, { error: 'Workspace is not trusted' });
             return;
@@ -127,23 +122,8 @@ export function startIpcServer(
             jsonResponse(res, 400, { error: 'groupId required' });
             return;
           }
-          await runner.stopGroup(groupId);
-          jsonResponse(res, 200, { ok: true, groupId });
-          return;
-        }
-
-        if (url.pathname === '/restart') {
-          if (!vscode.workspace.isTrusted) {
-            jsonResponse(res, 403, { error: 'Workspace is not trusted' });
-            return;
-          }
-          const groupId = body.groupId;
-          if (!groupId) {
-            jsonResponse(res, 400, { error: 'groupId required' });
-            return;
-          }
-          await runner.restartGroup(groupId);
-          jsonResponse(res, 200, { ok: true, groupId });
+          await action(groupId, body.serviceId || undefined);
+          jsonResponse(res, 200, { ok: true, groupId, serviceId: body.serviceId });
           return;
         }
       }

@@ -16,9 +16,9 @@ ${A.amber}${A.bold}muster${A.reset} — one click (or one command), full stack r
 Usage:
   muster                     Interactive dashboard (TUI)
   muster ls [--json]         List groups, services, and live status
-  muster run <group>         Start a group and wait for it to come up
-  muster stop <group>        Stop a group
-  muster restart <group>     Restart a group
+  muster run <group> [service]      Start a group (or one service) and wait
+  muster stop <group> [service]     Stop a group or a single service
+  muster restart <group> [service]  Restart a group or a single service
   muster status <group>      Show per-service status
   muster logs <group> <service> [-n N] [-f]   Show (or follow) service output
   muster help                This message
@@ -98,9 +98,12 @@ async function main(): Promise<void> {
     }
 
     case 'run': {
-      const groupId = rest[0] ?? fail('Usage: muster run <group>');
-      process.stdout.write(`${A.green}❯${A.reset} ${A.bold}muster run ${groupId}${A.reset}\n`);
-      await client.run(groupId);
+      const groupId = rest[0] ?? fail('Usage: muster run <group> [service]');
+      const serviceId = rest[1] && !rest[1].startsWith('-') ? rest[1] : undefined;
+      process.stdout.write(
+        `${A.green}❯${A.reset} ${A.bold}muster run ${groupId}${serviceId ? ` ${serviceId}` : ''}${A.reset}\n`
+      );
+      await client.run(groupId, serviceId);
       const status = await waitForGroup(client, groupId);
       printStatus(status);
       const running = Object.values(status.services).filter((s) => s === 'running').length;
@@ -115,15 +118,19 @@ async function main(): Promise<void> {
     }
 
     case 'stop': {
-      const groupId = rest[0] ?? fail('Usage: muster stop <group>');
-      await client.stop(groupId);
-      process.stdout.write(`${A.amber}[muster]${A.reset} stopped ${groupId}\n`);
+      const groupId = rest[0] ?? fail('Usage: muster stop <group> [service]');
+      const serviceId = rest[1] && !rest[1].startsWith('-') ? rest[1] : undefined;
+      await client.stop(groupId, serviceId);
+      process.stdout.write(
+        `${A.amber}[muster]${A.reset} stopped ${serviceId ? `${groupId}/${serviceId}` : groupId}\n`
+      );
       return;
     }
 
     case 'restart': {
-      const groupId = rest[0] ?? fail('Usage: muster restart <group>');
-      await client.restart(groupId);
+      const groupId = rest[0] ?? fail('Usage: muster restart <group> [service]');
+      const serviceId = rest[1] && !rest[1].startsWith('-') ? rest[1] : undefined;
+      await client.restart(groupId, serviceId);
       const status = await waitForGroup(client, groupId);
       printStatus(status);
       return;

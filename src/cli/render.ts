@@ -118,8 +118,8 @@ export function renderHeader(workspace: string, filter: string, width: number): 
 export function renderKeybar(mode: 'dash' | 'logs', width: number): string {
   const keys =
     mode === 'dash'
-      ? '↑↓ select · r run · s stop · x restart · l logs · / filter · q quit'
-      : '↑↓ scroll · f follow · esc back · q quit';
+      ? '↑↓ select · r run · s stop · x restart (group or service) · l logs · / filter · q quit'
+      : '↑↓ scroll · f follow · / filter · esc back · q quit';
   return truncateAnsi(`${A.invert} ${keys} ${A.reset}`, width);
 }
 

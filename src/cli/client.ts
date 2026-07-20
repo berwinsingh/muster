@@ -66,15 +66,15 @@ export class IpcClient {
     return data.lines;
   }
 
-  run(groupId: string): Promise<unknown> {
-    return this.request('/run', 'POST', { groupId });
+  run(groupId: string, serviceId?: string): Promise<unknown> {
+    return this.request('/run', 'POST', { groupId, ...(serviceId ? { serviceId } : {}) });
   }
 
-  stop(groupId: string): Promise<unknown> {
-    return this.request('/stop', 'POST', { groupId });
+  stop(groupId: string, serviceId?: string): Promise<unknown> {
+    return this.request('/stop', 'POST', { groupId, ...(serviceId ? { serviceId } : {}) });
   }
 
-  restart(groupId: string): Promise<unknown> {
-    return this.request('/restart', 'POST', { groupId });
+  restart(groupId: string, serviceId?: string): Promise<unknown> {
+    return this.request('/restart', 'POST', { groupId, ...(serviceId ? { serviceId } : {}) });
   }
 }
