@@ -115,12 +115,50 @@ export function renderHeader(workspace: string, filter: string, width: number): 
   return truncateAnsi(`${mark} ${ws}${f}`, width);
 }
 
-export function renderKeybar(mode: 'dash' | 'logs', width: number): string {
-  const keys =
+export type Button = { key: string; label: string; x1: number; x2: number };
+
+/**
+ * Bottom button bar: every entry is both a keyboard hint and a clickable
+ * hitbox. Returns the rendered line plus 1-based column ranges per button
+ * so the TUI can hit-test mouse clicks.
+ */
+export function renderButtons(
+  mode: 'dash' | 'logs',
+  width: number
+): { line: string; buttons: Button[] } {
+  const defs: { key: string; label: string }[] =
     mode === 'dash'
-      ? '↑↓ select · r run · s stop · x restart (group or service) · l logs · / filter · q quit'
-      : '↑↓ scroll · f follow · / filter · esc back · q quit';
-  return truncateAnsi(`${A.invert} ${keys} ${A.reset}`, width);
+      ? [
+          { key: 'r', label: 'run' },
+          { key: 's', label: 'stop' },
+          { key: 'x', label: 'restart' },
+          { key: 'l', label: 'logs' },
+          { key: '/', label: 'filter' },
+          { key: ':', label: 'commands' },
+          { key: 'q', label: 'quit' },
+        ]
+      : [
+          { key: 'f', label: 'follow' },
+          { key: '/', label: 'filter' },
+          { key: '\x1b', label: 'back' },
+          { key: 'q', label: 'quit' },
+        ];
+
+  const buttons: Button[] = [];
+  let line = '';
+  let col = 1;
+  for (const def of defs) {
+    const keyText = def.key === '\x1b' ? 'esc' : def.key;
+    // Visible cells: " key " + " label " → key+2 plus label+2 columns.
+    const visible = keyText.length + def.label.length + 4;
+    const x1 = col;
+    const x2 = col + visible - 1;
+    buttons.push({ key: def.key, label: def.label, x1, x2 });
+    line += `${A.invert}${A.amber} ${keyText} ${A.reset}${A.invert}${A.dim} ${def.label} ${A.reset} `;
+    col = x2 + 2; // one-column gap between buttons
+  }
+  const hint = mode === 'dash' ? '↑↓/click select' : '↑↓ scroll';
+  return { line: truncateAnsi(`${line}${A.dim}${hint}${A.reset}`, width), buttons };
 }
 
 export function plainGroupList(groups: CliGroup[], statuses: Map<string, CliGroupStatus>): string {

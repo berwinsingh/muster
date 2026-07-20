@@ -1,23 +1,30 @@
 /**
  * The interactive `muster` dashboard: a full-screen terminal UI over the
- * extension's IPC API. Poll-driven (1s), keyboard-operated, zero deps —
- * hand-rolled ANSI on the alternate screen buffer.
+ * extension's IPC API. Poll-driven (1s), zero deps — hand-rolled ANSI on
+ * the alternate screen buffer. Operated three ways: hotkeys, mouse
+ * (click rows and footer buttons, scroll wheel), and a fuzzy command
+ * palette (:) where you type what you want ("stop web").
  */
 import { CliGroupStatus, IpcClient } from './client';
+import { buildActions, matchActions, PaletteAction } from './palette';
 import {
   A,
+  Button,
   buildRows,
+  renderButtons,
   renderHeader,
-  renderKeybar,
   renderRow,
   Row,
 } from './render';
 
 const ALT_ON = '\x1b[?1049h\x1b[?25l';
 const ALT_OFF = '\x1b[?25h\x1b[?1049l';
+const MOUSE_ON = '\x1b[?1002h\x1b[?1006h';
+const MOUSE_OFF = '\x1b[?1006l\x1b[?1002l';
 const CLEAR = '\x1b[2J\x1b[H';
+const MOUSE_EVENT = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])/;
 
-type Mode = 'dash' | 'filter' | 'logs';
+type Mode = 'dash' | 'filter' | 'logs' | 'palette';
 
 export async function runTui(client: IpcClient): Promise<void> {
   let rows: Row[] = [];
@@ -35,6 +42,15 @@ export async function runTui(client: IpcClient): Promise<void> {
   let running = true;
   // '/' edits the dashboard filter or the log filter depending on where it was pressed
   let filterReturnMode: 'dash' | 'logs' = 'dash';
+  // palette state
+  let paletteQuery = '';
+  let paletteIndex = 0;
+  let paletteMatches: PaletteAction[] = [];
+  // layout metadata from the last draw, for mouse hit-testing (1-based rows)
+  let rowsTopY = 0;
+  let rowsStartIndex = 0;
+  let footerButtons: Button[] = [];
+  let footerY = 0;
 
   const statuses = new Map<string, CliGroupStatus>();
 
@@ -91,9 +107,22 @@ export async function runTui(client: IpcClient): Promise<void> {
       if (needle && visible.length === 0) {
         out.push(`${A.dim}No lines matching "${logFilter}".${A.reset}`);
       }
+    } else if (mode === 'palette') {
+      out.push(`${A.invert} : ${paletteQuery}▏${A.reset} ${A.dim}(type an action — "stop web" — enter to run, esc to cancel)${A.reset}`);
+      out.push('');
+      paletteMatches.forEach((match, i) => {
+        const marker = i === paletteIndex ? `${A.amber}▸${A.reset} ` : '  ';
+        const label = i === paletteIndex ? `${A.bold}${match.label}${A.reset}` : match.label;
+        out.push(`${marker}${label}`);
+      });
+      if (paletteMatches.length === 0) {
+        out.push(`${A.dim}No matching actions.${A.reset}`);
+      }
     } else {
       const room = height - 5;
       const start = Math.max(0, Math.min(selected - Math.floor(room / 2), rows.length - room));
+      rowsTopY = 3; // header line + blank line, 1-based
+      rowsStartIndex = start;
       rows.slice(start, start + room).forEach((row, i) => {
         out.push(renderRow(row, start + i === selected, width));
       });
@@ -107,21 +136,27 @@ export async function runTui(client: IpcClient): Promise<void> {
     if (mode === 'filter') {
       const editing = filterReturnMode === 'logs' ? logFilter : filter;
       footer.push(`${A.invert} filter: ${editing}▏(enter to apply, esc to clear) ${A.reset}`);
+      footerButtons = [];
+    } else if (mode === 'palette') {
+      footer.push(`${A.dim}↑↓ choose · enter run · esc cancel${A.reset}`);
+      footerButtons = [];
     } else {
-      footer.push(renderKeybar(mode === 'logs' ? 'logs' : 'dash', width));
+      const bar = renderButtons(mode === 'logs' ? 'logs' : 'dash', width);
+      footer.push(bar.line);
+      footerButtons = bar.buttons;
     }
 
     const body = out.slice(0, height - footer.length - 1);
     while (body.length < height - footer.length - 1) body.push('');
+    footerY = height - 1; // the button bar always lands on the last drawn row
     process.stdout.write(CLEAR + body.join('\n') + '\n' + footer.join('\n'));
   }
 
-  async function act(action: 'run' | 'stop' | 'restart'): Promise<void> {
-    const row = rows[selected];
-    if (!row) return;
-    // A selected service row acts on just that service; a group row on the group.
-    const groupId = row.group.id;
-    const serviceId = row.kind === 'service' ? row.serviceId : undefined;
+  async function performAction(
+    action: 'run' | 'stop' | 'restart',
+    groupId: string,
+    serviceId?: string
+  ): Promise<void> {
     const label = serviceId ? `${groupId}/${serviceId}` : groupId;
     flash = `${action} ${label}…`;
     flashTicks = 3;
@@ -135,9 +170,105 @@ export async function runTui(client: IpcClient): Promise<void> {
     flashTicks = 3;
   }
 
+  async function act(action: 'run' | 'stop' | 'restart'): Promise<void> {
+    const row = rows[selected];
+    if (!row) return;
+    // A selected service row acts on just that service; a group row on the group.
+    await performAction(action, row.group.id, row.kind === 'service' ? row.serviceId : undefined);
+  }
+
+  async function openLogs(groupId: string, serviceId: string, name: string): Promise<void> {
+    logsTarget = { groupId, serviceId, name };
+    mode = 'logs';
+    follow = true;
+    logScroll = 0;
+    logFilter = '';
+    logLines = await client.logs(groupId, serviceId, 500).catch(() => []);
+  }
+
+  async function executePaletteAction(action: PaletteAction): Promise<void> {
+    mode = 'dash';
+    paletteQuery = '';
+    switch (action.kind) {
+      case 'run':
+      case 'stop':
+      case 'restart':
+        await performAction(action.kind, action.groupId!, action.serviceId);
+        return;
+      case 'logs':
+        await openLogs(action.groupId!, action.serviceId!, action.serviceId!);
+        return;
+      case 'filter-clear':
+        filter = '';
+        await refresh();
+        return;
+      case 'quit':
+        running = false;
+        return;
+    }
+  }
+
+  async function handleMouse(button: number, x: number, y: number, isPress: boolean): Promise<void> {
+    // Scroll wheel works in every mode.
+    if (button === 64 || button === 65) {
+      const delta = button === 64 ? -1 : 1;
+      if (mode === 'logs') {
+        if (delta < 0) { follow = false; logScroll = Math.min(logScroll + 3, Math.max(0, logLines.length - 5)); }
+        else { logScroll = Math.max(0, logScroll - 3); if (logScroll === 0) follow = true; }
+      } else if (mode === 'dash') {
+        selected = Math.max(0, Math.min(rows.length - 1, selected + delta));
+      }
+      return;
+    }
+
+    if (!isPress || button !== 0) {
+      return;
+    }
+
+    // Footer buttons behave like their hotkeys, in any buttoned mode.
+    if (y === footerY) {
+      const hit = footerButtons.find((b) => x >= b.x1 && x <= b.x2);
+      if (hit) {
+        await onKey(hit.key);
+      }
+      return;
+    }
+
+    // Clicking a dashboard row selects it; clicking the selected row's
+    // service opens its logs (click-to-drill).
+    if (mode === 'dash') {
+      const index = rowsStartIndex + (y - rowsTopY);
+      if (index >= 0 && index < rows.length && y >= rowsTopY) {
+        if (index === selected && rows[index].kind === 'service') {
+          await onKey('l');
+        } else {
+          selected = index;
+        }
+      }
+    }
+  }
+
   async function onKey(key: string): Promise<void> {
     if (key === '\x03') {
       running = false;
+      return;
+    }
+
+    if (mode === 'palette') {
+      const refreshMatches = (): void => {
+        paletteMatches = matchActions(buildActions(rows, filter.length > 0), paletteQuery);
+        paletteIndex = Math.min(paletteIndex, Math.max(0, paletteMatches.length - 1));
+      };
+      if (key === '\x1b') { mode = 'dash'; paletteQuery = ''; return; }
+      if (key === '\r') {
+        const chosen = paletteMatches[paletteIndex];
+        if (chosen) await executePaletteAction(chosen);
+        return;
+      }
+      if (key === '\x1b[A') { paletteIndex = Math.max(0, paletteIndex - 1); return; }
+      if (key === '\x1b[B') { paletteIndex = Math.min(paletteMatches.length - 1, paletteIndex + 1); return; }
+      if (key === '\x7f') { paletteQuery = paletteQuery.slice(0, -1); refreshMatches(); return; }
+      if (key >= ' ' && key.length === 1) { paletteQuery += key; refreshMatches(); return; }
       return;
     }
 
@@ -179,6 +310,12 @@ export async function runTui(client: IpcClient): Promise<void> {
         filterReturnMode = 'dash';
         mode = 'filter';
         return;
+      case ':':
+        mode = 'palette';
+        paletteQuery = '';
+        paletteIndex = 0;
+        paletteMatches = matchActions(buildActions(rows, filter.length > 0), '');
+        return;
       case 'r':
         await act('run');
         return;
@@ -191,30 +328,48 @@ export async function runTui(client: IpcClient): Promise<void> {
       case 'l': {
         const row = rows[selected];
         if (row?.kind === 'service') {
-          logsTarget = { groupId: row.group.id, serviceId: row.serviceId, name: row.name };
-          mode = 'logs';
-          follow = true;
-          logScroll = 0;
-          logLines = await client.logs(row.group.id, row.serviceId, 500).catch(() => []);
+          await openLogs(row.group.id, row.serviceId, row.name);
         }
         return;
       }
     }
   }
 
-  process.stdout.write(ALT_ON);
+  process.stdout.write(ALT_ON + MOUSE_ON);
   process.stdin.setRawMode?.(true);
   process.stdin.resume();
   process.stdin.setEncoding('utf-8');
 
   const cleanup = (): void => {
     process.stdin.setRawMode?.(false);
-    process.stdout.write(ALT_OFF);
+    process.stdout.write(MOUSE_OFF + ALT_OFF);
   };
   process.on('exit', cleanup);
 
+  async function onInput(chunk: string): Promise<void> {
+    // A chunk may carry several mouse events, a mouse event plus keys, or
+    // a plain key sequence. Mouse events are consumed first; whatever is
+    // left is treated as one key chord.
+    let remaining = chunk;
+    while (remaining.length > 0) {
+      const mouse = MOUSE_EVENT.exec(remaining);
+      if (mouse) {
+        await handleMouse(
+          parseInt(mouse[1], 10),
+          parseInt(mouse[2], 10),
+          parseInt(mouse[3], 10),
+          mouse[4] === 'M'
+        );
+        remaining = remaining.slice(mouse[0].length);
+        continue;
+      }
+      await onKey(remaining);
+      return;
+    }
+  }
+
   process.stdin.on('data', (chunk: string) => {
-    void onKey(chunk).then(() => {
+    void onInput(chunk).then(() => {
       if (!running) {
         cleanup();
         process.exit(0);

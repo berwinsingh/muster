@@ -114,12 +114,18 @@ Control groups from any terminal while VS Code is open — including an
 interactive dashboard in the spirit of Claude Code / opencode:
 
 ```bash
-muster              # interactive TUI: live status, ↑↓ select, r run, s stop, l logs, / filter
+muster              # interactive TUI dashboard
 muster ls           # groups + services + live status (add --json for scripting)
 muster run full-stack
+muster stop full-stack api        # stop just one service
 muster logs full-stack api -f
-muster stop full-stack
 ```
+
+The dashboard is operated three ways: hotkeys (`r`/`s`/`x` act on the
+selected group *or* service, `l` logs, `/` filter), the mouse (click
+rows to select, click the footer buttons, scroll wheel), or the
+command palette — press `:` and type what you want (`stop web` fuzzy-
+matches `stop split-demo/web`, enter runs it).
 
 Get `muster` on your PATH with `npm link` from a repo checkout, or run
 `node bin/muster.cjs` directly (it finds the CLI inside an installed
