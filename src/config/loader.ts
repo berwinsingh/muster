@@ -75,7 +75,8 @@ export function resolveGroupPaths(
         ...svc,
         cwd,
         envFile: svc.envFile ? substituteVariables(svc.envFile, workspaceFolder) : undefined,
-        command: substituteVariables(svc.command, workspaceFolder),
+        command: svc.command ? substituteVariables(svc.command, workspaceFolder) : undefined,
+        commands: svc.commands?.map((c) => substituteVariables(c, workspaceFolder)),
         python: svc.python?.venv
           ? { venv: substituteVariables(svc.python.venv, workspaceFolder) }
           : svc.python,
@@ -240,7 +241,11 @@ export function loadMergedConfigFromPaths(
           cwd: svc.cwd && fakeFolder ? substituteVariables(svc.cwd, fakeFolder) : svc.cwd,
           envFile:
             svc.envFile && fakeFolder ? substituteVariables(svc.envFile, fakeFolder) : svc.envFile,
-          command: fakeFolder ? substituteVariables(svc.command, fakeFolder) : svc.command,
+          command:
+            svc.command && fakeFolder ? substituteVariables(svc.command, fakeFolder) : svc.command,
+          commands: fakeFolder
+            ? svc.commands?.map((c) => substituteVariables(c, fakeFolder))
+            : svc.commands,
         })),
       };
     }

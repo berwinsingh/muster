@@ -16,8 +16,11 @@ Muster is a VS Code extension for orchestrating dev server groups — configure 
 | **Core** | Terminal layouts | `dedicated` (one terminal per service), `aggregated` (single terminal), or `split` (split panes) |
 | **Core** | Start order | `parallel` or `sequence` with per-service `dependsOn` and `delayMs` |
 | **Core** | Ready detection | Wait for `readyPattern` regex in terminal output or `healthUrl` HTTP check before proceeding |
-| **Runtime** | Python venv | Auto-detect `.venv` / `venv` / `env`; activate before command; browse or create venv from wizard |
-| **Runtime** | Node / nvm | Detect `.nvmrc` and `package.json` engines; prepend `nvm use` automatically |
+| **Core** | Stacked commands | `commands: [...]` list per service, chained with `&&` — no more cramming setup steps into one string |
+| **Core** | Ports | First-class `port` field: injected as `PORT` env var, `${port}` substitution in command/healthUrl, and a pre-launch warning when the port is already taken |
+| **Core** | Lifecycle hooks | Group `hooks.preRun` / `hooks.postStop` commands (VPN connect, `docker compose up`, migrations) — preRun failures abort the run |
+| **Runtime** | Python venv | Explicit `python.venv` activation; wizard auto-suggestion is opt-in via `muster.autoRuntimeDetection` |
+| **Runtime** | Node / nvm | Explicit `node.version` prepends `nvm use`; `.nvmrc`/engines auto-detection is opt-in via `muster.autoRuntimeDetection` (off by default) |
 | **Runtime** | Shell prepend | Custom `shell.prepend` commands run before the main command (venv, nvm, etc.) |
 | **Runtime** | Command suggestions | Scan `package.json`, `Makefile`, `pyproject.toml`, and `go.mod` for dev commands |
 | **Runtime** | Variable substitution | `${workspaceFolder}`, `${workspaceFolderBasename}`, and `${env:VAR}` in paths and commands |
@@ -38,9 +41,46 @@ Muster is a VS Code extension for orchestrating dev server groups — configure 
 | **UI** | Welcome view | Onboarding buttons: Create Group, Import Example, Open Visual Editor |
 | **UI** | Config wizard v0.1.3 | Redesigned visual editor with runtime detection, folder pickers, and Save & Run |
 | **UI** | Events timeline panel | Webview sidebar with segmented filters, chips, and scrollable event timeline |
+| **UI** | `muster` CLI + TUI | Full dashboard in any terminal: hotkeys, mouse (click rows/buttons, scroll), and a fuzzy command palette (`:` → "stop web"); per-service run/stop/restart; log follow + filter; `--json` for scripts |
 | **Security** | Trust gate | Run/stop/restart blocked in untrusted workspaces until the user trusts the folder |
 | **Security** | Config-only commands | Only commands defined in Muster config can be executed — no arbitrary shell |
 | **Security** | Non-destructive | `keepExistingTerminals` (default true) preserves unrelated terminals; only tracked processes are stopped |
+
+---
+
+## The `muster` CLI
+
+Control groups from any terminal while VS Code (or Cursor) is open with the
+extension active. The CLI connects through the same localhost IPC + discovery
+mechanism as the MCP server, so trust checks apply and everything stays
+visible in VS Code terminals. Get it on your PATH with `npm link` from a
+checkout, or run `node bin/muster.cjs` (it also finds the CLI inside an
+installed extension).
+
+### Commands
+
+| Command | What it does |
+|---------|--------------|
+| `muster` | Interactive dashboard (TUI) |
+| `muster ls [--json]` | Groups, services, ports, and live status |
+| `muster run <group> [service]` | Start a group (or one service), wait for readiness, report `N/N running` |
+| `muster stop <group> [service]` | Stop a group or a single service |
+| `muster restart <group> [service]` | Restart a group or a single service |
+| `muster status <group>` | Per-service status |
+| `muster logs <group> <service> [-n N] [-f]` | Show or follow service output |
+
+### The dashboard
+
+Three ways to operate it:
+
+| Mode | How |
+|------|-----|
+| **Hotkeys** | `↑↓` select · `r` run · `s` stop · `x` restart (acts on the selected group *or* service) · `l` logs · `/` filter · `q` quit |
+| **Mouse** | Click a row to select, click the selected service again to open its logs, click the footer buttons, scroll wheel to move/scroll |
+| **Command palette** | `:` opens a fuzzy-matched list of every live action — type `stop web` to match `stop full-stack/web`, arrows choose, enter runs |
+
+The log view follows output live (`f` toggles), scrolls with `↑↓`/wheel, and
+filters with `/` — matching lines only, with a no-match indicator.
 
 ---
 

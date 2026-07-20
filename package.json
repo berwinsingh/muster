@@ -41,6 +41,10 @@
     "onCommand:muster.openConfig"
   ],
   "main": "./dist/extension.js",
+  "bin": {
+    "muster": "./bin/muster.cjs",
+    "muster-mcp": "./bin/muster-mcp.cjs"
+  },
   "contributes": {
     "commands": [
       {
@@ -273,6 +277,11 @@
           "type": "boolean",
           "default": true,
           "description": "Do not close existing terminals when starting a group"
+        },
+        "muster.autoRuntimeDetection": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-suggest Python venv activation and nvm use in the config wizard based on project files (.nvmrc, package.json engines, venv folders). When off, runtime activation is only used if set explicitly in the service config."
         },
         "muster.orchestratorTerminal": {
           "type": "boolean",

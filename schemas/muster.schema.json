@@ -32,12 +32,25 @@
     "service": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "command"],
+      "required": ["id", "name"],
+      "anyOf": [{ "required": ["command"] }, { "required": ["commands"] }],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "name": { "type": "string", "minLength": 1 },
         "command": { "type": "string", "minLength": 1 },
+        "commands": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Commands chained with && — later steps only run when earlier ones succeed. Use instead of command."
+        },
         "cwd": { "type": "string" },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Primary port. Injected as the PORT env var (explicit env wins), substitutes ${port} in command/healthUrl, and warns before launch if already in use."
+        },
         "env": {
           "type": "object",
           "additionalProperties": { "type": "string" }
@@ -102,6 +115,23 @@
           "default": "parallel"
         },
         "keepExistingTerminals": { "type": "boolean" },
+        "hooks": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Lifecycle commands run in a login shell at the workspace root (VPN connect, docker compose up, migrations, …)",
+          "properties": {
+            "preRun": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Run sequentially before the group starts; a failure aborts the run"
+            },
+            "postStop": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Run after the group stops; failures are reported but don't fail the stop"
+            }
+          }
+        },
         "services": {
           "type": "array",
           "minItems": 1,

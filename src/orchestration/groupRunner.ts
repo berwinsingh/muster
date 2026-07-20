@@ -1,6 +1,8 @@
+import * as net from 'net';
 import * as vscode from 'vscode';
 import { findGroup, loadMergedConfig } from '../config/loader';
 import { GroupConfig, ServiceConfig } from '../config/schema';
+import { runHooks } from './hooks';
 import { launchAggregatedGroup } from './layouts/aggregated';
 import { launchDedicatedService } from './layouts/dedicated';
 import { launchSplitOrDedicated } from './layouts/split';
@@ -11,7 +13,9 @@ import {
   formatDelay,
   formatFailure,
   formatHealthOk,
+  formatHook,
   formatPartial,
+  formatPortWarning,
   formatReadyMatched,
   formatRunHeader,
   formatServiceLaunch,
@@ -68,6 +72,15 @@ export class GroupRunner {
       if (!keepExisting) {
         // Only dispose terminals tracked by this group, not all workspace terminals
         await this.stopGroup(groupId, false);
+      }
+
+      if (group.hooks?.preRun?.length) {
+        await runHooks(
+          'preRun',
+          group.hooks.preRun,
+          this.getWorkspaceFolder()?.uri.fsPath,
+          (line) => this.narrator?.writeLine(formatHook(line))
+        );
       }
 
       if (group.layout === 'aggregated') {
@@ -167,6 +180,9 @@ export class GroupRunner {
   }
 
   private async runSingleService(group: GroupConfig, service: ServiceConfig): Promise<void> {
+    if (service.port !== undefined && (await isPortInUse(service.port))) {
+      this.narrator?.writeLine(formatPortWarning(service.id, service.port));
+    }
     this.narrator?.writeLine(formatServiceLaunch(service.id, buildServiceCommand(service)));
     await launchDedicatedService(group, service, this.tracker, this.getWorkspaceFolder());
 
@@ -181,12 +197,16 @@ export class GroupRunner {
     }
 
     try {
+      const healthUrl =
+        service.healthUrl && service.port !== undefined
+          ? service.healthUrl.replace(/\$\{port\}/g, String(service.port))
+          : service.healthUrl;
       await waitForServiceReady(
         this.tracker,
         group.id,
         service.id,
         service.readyPattern,
-        service.healthUrl,
+        healthUrl,
         group.order === 'sequence' ? service.delayMs : undefined
       );
       const hasDependents = group.services.some((s) => s.dependsOn?.includes(service.id));
@@ -202,6 +222,25 @@ export class GroupRunner {
     }
   }
 
+  async stopService(groupId: string, serviceId: string): Promise<void> {
+    const config = this.getConfig();
+    const group = findGroup(config, groupId);
+    if (!group) {
+      throw new Error(`Unknown group: ${groupId}`);
+    }
+    if (!group.services.some((s) => s.id === serviceId)) {
+      throw new Error(`Unknown service: ${serviceId}`);
+    }
+    this.narrator?.writeLine(formatStopping(`${groupId}/${serviceId}`));
+    await this.tracker.stopGroup(groupId, [serviceId]);
+    this.narrator?.writeLine(formatStopped(`${groupId}/${serviceId}`));
+  }
+
+  async restartService(groupId: string, serviceId: string): Promise<void> {
+    await this.stopService(groupId, serviceId);
+    await this.runService(groupId, serviceId);
+  }
+
   async stopGroup(groupId: string, removeFromRunning = true): Promise<void> {
     const config = this.getConfig();
     const group = findGroup(config, groupId);
@@ -213,6 +252,21 @@ export class GroupRunner {
     this.narrator?.writeLine(formatStopping(groupId));
     await this.tracker.stopGroup(groupId, serviceIds);
     this.narrator?.writeLine(formatStopped(groupId));
+
+    if (group.hooks?.postStop?.length) {
+      try {
+        await runHooks(
+          'postStop',
+          group.hooks.postStop,
+          this.getWorkspaceFolder()?.uri.fsPath,
+          (line) => this.narrator?.writeLine(formatHook(line))
+        );
+      } catch (err) {
+        // postStop is best-effort: the group is already down, so surface
+        // the failure without turning a successful stop into an error.
+        this.narrator?.writeLine(formatFailure(groupId, String(err)));
+      }
+    }
 
     if (removeFromRunning) {
       this.runningGroups.delete(groupId);
@@ -247,4 +301,19 @@ export class GroupRunner {
       group.services.map((s) => s.id)
     );
   }
+}
+
+/** True when something is already listening on 127.0.0.1:port. */
+function isPortInUse(port: number, timeoutMs = 400): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: '127.0.0.1', port });
+    const finish = (inUse: boolean): void => {
+      socket.destroy();
+      resolve(inUse);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.on('connect', () => finish(true));
+    socket.on('timeout', () => finish(false));
+    socket.on('error', () => finish(false));
+  });
 }

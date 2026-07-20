@@ -200,6 +200,42 @@ async function run() {
     mcp.close();
   }
 
+  console.log('[integration] verifying the muster CLI against the live extension');
+  const cliPath = path.join(extension.extensionPath, 'bin', 'muster.cjs');
+  const runCli = (args) =>
+    new Promise((resolve) => {
+      const child = require('node:child_process').spawn(process.execPath, [cliPath, ...args], {
+        env: externalEnv,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (c) => (stdout += c));
+      child.stderr.on('data', (c) => (stderr += c));
+      child.on('exit', (code) => resolve({ code, stdout, stderr }));
+      setTimeout(() => child.kill('SIGTERM'), 30000);
+    });
+
+  const ls = await runCli(['ls']);
+  assert.equal(ls.code, 0, `muster ls should succeed. stderr: ${ls.stderr}`);
+  assert.ok(ls.stdout.includes('smoke'), 'muster ls should list the smoke group');
+
+  const terminalForCli = waitForTerminal('Muster: Smoke Logger');
+  const runResult = await runCli(['run', 'smoke']);
+  assert.equal(runResult.code, 0, `muster run should succeed. stderr: ${runResult.stderr}`);
+  assert.ok(
+    runResult.stdout.includes('services running'),
+    `muster run should report the final status. stdout: ${runResult.stdout}`
+  );
+  await terminalForCli;
+
+  const logsResult = await runCli(['logs', 'smoke', 'logger', '-n', '50']);
+  assert.equal(logsResult.code, 0, `muster logs should succeed. stderr: ${logsResult.stderr}`);
+
+  const stopResult = await runCli(['stop', 'smoke']);
+  assert.equal(stopResult.code, 0, `muster stop should succeed. stderr: ${stopResult.stderr}`);
+  assert.ok(stopResult.stdout.includes('stopped smoke'), 'muster stop should confirm');
+
   console.log('[integration] smoke test complete');
 }
 

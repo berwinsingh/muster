@@ -97,6 +97,38 @@ Add a `monitoring` section to `.vscode/muster.json`:
 
 Default patterns are used when `monitoring` is omitted.
 
+### Service config highlights
+
+```jsonc
+{
+  "groups": [{
+    "id": "full-stack",
+    "label": "Full Stack Dev",
+    "hooks": { "preRun": ["docker compose up -d db"] },   // lifecycle hooks (VPN, compose, migrations)
+    "services": [
+      {
+        "id": "api",
+        "name": "API",
+        "command": "uvicorn main:app --port ${port}",
+        "port": 8000,                                     // injected as PORT, ${port} substitution,
+        "readyPattern": "startup complete"                // pre-launch in-use warning
+      },
+      {
+        "id": "frontend",
+        "name": "Web",
+        "commands": ["pnpm install", "pnpm dev"],         // stacked commands, chained with &&
+        "port": 3000,
+        "cwd": "${workspaceFolder}/frontend"
+      }
+    ]
+  }]
+}
+```
+
+Runtime auto-detection (venv/nvm suggestions in the wizard) is opt-in via the
+`muster.autoRuntimeDetection` setting; explicit `python.venv` / `node.version`
+config always applies.
+
 ## Commands
 
 | Command | Description |
@@ -107,6 +139,29 @@ Default patterns are used when `monitoring` is omitted.
 | `Muster: Create Group` | Create a new group visually |
 | `Muster: Import Example` | Load a starter configuration |
 | `Muster: Open Config` | Open raw JSON config |
+
+## CLI
+
+Control groups from any terminal while VS Code is open — including an
+interactive dashboard in the spirit of Claude Code / opencode:
+
+```bash
+muster              # interactive TUI dashboard
+muster ls           # groups + services + live status (add --json for scripting)
+muster run full-stack
+muster stop full-stack api        # stop just one service
+muster logs full-stack api -f
+```
+
+The dashboard is operated three ways: hotkeys (`r`/`s`/`x` act on the
+selected group *or* service, `l` logs, `/` filter), the mouse (click
+rows to select, click the footer buttons, scroll wheel), or the
+command palette — press `:` and type what you want (`stop web` fuzzy-
+matches `stop split-demo/web`, enter runs it).
+
+Get `muster` on your PATH with `npm link` from a repo checkout, or run
+`node bin/muster.cjs` directly (it finds the CLI inside an installed
+extension too).
 
 ## MCP integration
 

@@ -309,6 +309,44 @@
     color: var(--text);
   }
 
+  /* cli / tui */
+  .tui {
+    font-family: var(--mono); font-size: 13px; line-height: 1.7;
+    padding: 16px 20px;
+  }
+  .tui .hdr { color: var(--faint); }
+  .tui .hdr .mark { color: var(--amber); font-weight: 600; letter-spacing: 0.1em; }
+  .tui .sel { color: var(--amber); }
+  .tui .grp { color: var(--text); font-weight: 600; }
+  .tui .meta { color: var(--faint); }
+  .tui .ok { color: var(--green); }
+  .tui .d-run { color: var(--green); }
+  .tui .d-idle { color: var(--faint); }
+  .tui .portn { color: var(--blue); }
+  .tui .cmd { color: var(--faint); }
+  .tui .palette {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed var(--line);
+  }
+  .tui .pal-prompt { background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 5px; }
+  .tui .pal-prompt .q { color: var(--text); }
+  .tui .btnbar { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .tui .btn-chip {
+    display: inline-flex; border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--line); font-size: 11.5px;
+  }
+  .tui .btn-chip .k { background: rgba(255, 180, 84, 0.15); color: var(--amber); padding: 2px 7px; }
+  .tui .btn-chip .lbl { background: rgba(255,255,255,0.05); color: var(--muted); padding: 2px 8px; }
+  .cli-points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 28px; }
+  .cli-point h3 { font-size: 16.5px; font-weight: 600; margin-bottom: 6px; }
+  .cli-point h3 code {
+    font-family: var(--mono); font-size: 13px;
+    background: rgba(255, 180, 84, 0.1); color: var(--amber);
+    padding: 1px 7px; border-radius: 6px; border: 1px solid rgba(255, 180, 84, 0.2);
+  }
+  .cli-point p { color: var(--muted); font-size: 14.5px; }
+  @media (max-width: 900px) { .cli-points { grid-template-columns: 1fr; } }
+
   /* agents */
   .agents-panel {
     margin-top: 56px;
@@ -490,6 +528,7 @@
     <div class="nav-links">
       <a href="#how">How it works</a>
       <a href="#features">Features</a>
+      <a href="#cli">CLI</a>
       <a href="#agents">Agents</a>
       <a href="#install">Install</a>
       <a class="btn btn-ghost btn-sm" href="https://github.com/berwinsingh/muster">GitHub ↗</a>
@@ -509,7 +548,7 @@
       <a class="btn btn-primary" href="#install">Install Muster</a>
       <a class="btn btn-ghost" href="https://github.com/berwinsingh/muster">View source ↗</a>
     </div>
-    <p class="hero-meta">MIT licensed<span>·</span>VS Code ≥ 1.96<span>·</span>MCP server built in</p>
+    <p class="hero-meta">MIT licensed<span>·</span>VS Code ≥ 1.96<span>·</span>MCP server built in<span>·</span>CLI + TUI included</p>
 
     <div class="mock-outer">
       <div class="window">
@@ -570,7 +609,7 @@
       <div class="step reveal">
         <span class="step-num">02</span>
         <h3>Run the group</h3>
-        <p>One click in the sidebar, the status bar, or the command palette. Muster opens terminals in your chosen layout — <code>dedicated</code>, <code>aggregated</code>, or <code>split</code> — and starts everything in order.</p>
+        <p>One click in the sidebar — or <code>muster run full-stack</code> from any terminal. Muster opens terminals in your chosen layout — <code>dedicated</code>, <code>aggregated</code>, or <code>split</code> — and starts everything in order.</p>
       </div>
       <div class="step reveal">
         <span class="step-num">03</span>
@@ -602,9 +641,24 @@
         <p>Gate dependents on a <code>readyPattern</code> regex in terminal output or an HTTP <code>healthUrl</code> check — not on hope.</p>
       </div>
       <div class="feat reveal">
+        <div class="feat-icon">≡</div>
+        <h3>Stacked commands</h3>
+        <p>A <code>commands</code> list per service, chained with <code>&amp;&amp;</code> — install, migrate, then serve, without cramming one string.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">⚓</div>
+        <h3>First-class ports</h3>
+        <p>Declare <code>port</code> once: it becomes the <code>PORT</code> env var, substitutes <code>${port}</code> anywhere, and Muster warns before launch if something's already listening.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">⛓</div>
+        <h3>Lifecycle hooks</h3>
+        <p><code>preRun</code>/<code>postStop</code> commands per group — connect the VPN, <code>docker compose up</code>, run migrations — narrated, with failures aborting the run.</p>
+      </div>
+      <div class="feat reveal">
         <div class="feat-icon">🐍</div>
         <h3>Runtime aware</h3>
-        <p>Auto-detects Python venvs and <code>.nvmrc</code> files, and activates the right environment before your command runs.</p>
+        <p>Explicit venv and <code>nvm</code> activation per service, with project auto-detection available as an opt-in setting — never forced on you.</p>
       </div>
       <div class="feat reveal">
         <div class="feat-icon">⚡</div>
@@ -615,6 +669,61 @@
         <div class="feat-icon">🛡</div>
         <h3>Trust &amp; safety</h3>
         <p>Blocked in untrusted workspaces. Only commands defined in config can run — no arbitrary shell. Your other terminals are never touched.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="cli">
+  <div class="wrap">
+    <p class="sec-eyebrow reveal">Terminal native</p>
+    <h2 class="reveal">The same stack, from any terminal</h2>
+    <p class="sec-sub reveal">The <span style="font-family:var(--mono);font-size:0.85em">muster</span> CLI ships inside the extension — an interactive dashboard in the spirit of Claude Code and opencode, plus plain commands for scripts. VS Code stays the engine; your terminal becomes a remote control.</p>
+
+    <div class="mock-outer" style="margin-top:44px; max-width: 860px;">
+      <div class="window">
+        <div class="titlebar">
+          <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+          <span class="title-text">muster — dashboard</span>
+        </div>
+        <div class="tui">
+          <div class="tl" style="animation-delay:0.3s"><span class="hdr"><span class="mark">MUSTER</span> ~/code/acme</span></div>
+          <div class="tl" style="animation-delay:0.7s"><span class="sel">▸</span> <span class="grp">Full Stack Dev</span> <span class="meta">(full-stack · dedicated)</span> <span class="ok">running</span></div>
+          <div class="tl" style="animation-delay:1.0s">&nbsp;&nbsp;&nbsp;<span class="d-run">●</span> FastAPI <span class="portn">:8000</span> <span class="cmd">uvicorn main:app --reload</span></div>
+          <div class="tl" style="animation-delay:1.3s">&nbsp;&nbsp;&nbsp;<span class="d-run">●</span> Celery Worker <span class="cmd">celery -A app worker</span></div>
+          <div class="tl" style="animation-delay:1.6s">&nbsp;&nbsp;&nbsp;<span class="d-run">●</span> Next.js <span class="portn">:3000</span> <span class="cmd">pnpm dev</span></div>
+          <div class="tl" style="animation-delay:1.9s">&nbsp;&nbsp;<span class="grp" style="font-weight:400">Workers Only</span> <span class="meta">(workers · aggregated) idle</span></div>
+          <div class="tl" style="animation-delay:2.1s">&nbsp;&nbsp;&nbsp;<span class="d-idle">○</span> Indexer <span class="cmd">node jobs/indexer.js</span></div>
+          <div class="tl palette" style="animation-delay:2.6s">
+            <span class="pal-prompt">: <span class="q">stop web</span>▏</span>&nbsp;&nbsp;<span class="meta">type an action · enter to run</span><br>
+            <span class="sel">▸</span> stop full-stack/web
+          </div>
+          <div class="tl btnbar" style="animation-delay:3.1s">
+            <span class="btn-chip"><span class="k">r</span><span class="lbl">run</span></span>
+            <span class="btn-chip"><span class="k">s</span><span class="lbl">stop</span></span>
+            <span class="btn-chip"><span class="k">x</span><span class="lbl">restart</span></span>
+            <span class="btn-chip"><span class="k">l</span><span class="lbl">logs</span></span>
+            <span class="btn-chip"><span class="k">/</span><span class="lbl">filter</span></span>
+            <span class="btn-chip"><span class="k">:</span><span class="lbl">commands</span></span>
+            <span class="btn-chip"><span class="k">q</span><span class="lbl">quit</span></span>
+            <span class="meta" style="align-self:center">↑↓/click select</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cli-points">
+      <div class="cli-point reveal">
+        <h3>Type what you want <code>:</code></h3>
+        <p>The command palette fuzzy-matches every live action — <span style="font-family:var(--mono);font-size:0.9em">stop web</span> finds <span style="font-family:var(--mono);font-size:0.9em">stop full-stack/web</span>. No keybindings to memorize.</p>
+      </div>
+      <div class="cli-point reveal">
+        <h3>Point and click</h3>
+        <p>Click rows to select, click a service again for its logs, click the footer buttons to act, scroll to move. A TUI that behaves like a UI.</p>
+      </div>
+      <div class="cli-point reveal">
+        <h3>One server at a time</h3>
+        <p>Stop or restart a single service without touching its siblings. Follow logs live with <span style="font-family:var(--mono);font-size:0.9em">-f</span>, filter them as they stream, script it all with <span style="font-family:var(--mono);font-size:0.9em">muster ls --json</span>.</p>
       </div>
     </div>
   </div>
@@ -657,9 +766,9 @@
       <p class="sec-sub reveal">A single <span style="font-family:var(--mono);font-size:0.85em">muster.json</span> in your repo defines the stack for everyone. Schema-validated, wizard-editable, diff-friendly.</p>
       <ul class="check-list reveal">
         <li>JSON Schema autocomplete in VS Code</li>
-        <li><span style="font-family:var(--mono);font-size:0.9em">${workspaceFolder}</span> and env-var substitution</li>
-        <li>Global profiles in <span style="font-family:var(--mono);font-size:0.9em">~/.config/muster</span>, extendable per-workspace</li>
-        <li>Env files, custom env vars, shell prepends</li>
+        <li><span style="font-family:var(--mono);font-size:0.9em">${workspaceFolder}</span>, <span style="font-family:var(--mono);font-size:0.9em">${env:VAR}</span>, and <span style="font-family:var(--mono);font-size:0.9em">${port}</span> substitution</li>
+        <li>Stacked <span style="font-family:var(--mono);font-size:0.9em">commands</span>, first-class ports, pre-run/post-stop hooks</li>
+        <li>Global profiles in <span style="font-family:var(--mono);font-size:0.9em">~/.config/muster</span>, env files, shell prepends</li>
       </ul>
     </div>
     <div class="code-window reveal">
@@ -672,22 +781,24 @@
     <span class="k">"id"</span><span class="pu">:</span> <span class="s">"full-stack"</span><span class="pu">,</span>
     <span class="k">"label"</span><span class="pu">:</span> <span class="s">"Full Stack Dev"</span><span class="pu">,</span>
     <span class="k">"layout"</span><span class="pu">:</span> <span class="s">"dedicated"</span><span class="pu">,</span>
+    <span class="k">"hooks"</span><span class="pu">: {</span> <span class="k">"preRun"</span><span class="pu">: [</span><span class="s">"docker compose up -d db"</span><span class="pu">] },</span>
     <span class="k">"services"</span><span class="pu">: [</span>
       <span class="pu">{</span>
         <span class="k">"id"</span><span class="pu">:</span> <span class="s">"api"</span><span class="pu">,</span>
-        <span class="k">"command"</span><span class="pu">:</span> <span class="s">"uvicorn main:app --reload"</span><span class="pu">,</span>
+        <span class="k">"command"</span><span class="pu">:</span> <span class="s">"uvicorn main:app --port ${port}"</span><span class="pu">,</span>
+        <span class="k">"port"</span><span class="pu">:</span> <span class="n">8000</span><span class="pu">,</span>
         <span class="k">"cwd"</span><span class="pu">:</span> <span class="s">"${workspaceFolder}/backend"</span><span class="pu">,</span>
         <span class="k">"readyPattern"</span><span class="pu">:</span> <span class="s">"startup complete"</span>
       <span class="pu">},</span>
       <span class="pu">{</span>
         <span class="k">"id"</span><span class="pu">:</span> <span class="s">"worker"</span><span class="pu">,</span>
         <span class="k">"command"</span><span class="pu">:</span> <span class="s">"celery -A app worker"</span><span class="pu">,</span>
-        <span class="k">"dependsOn"</span><span class="pu">: [</span><span class="s">"api"</span><span class="pu">],</span>
-        <span class="k">"delayMs"</span><span class="pu">:</span> <span class="n">2000</span>
+        <span class="k">"dependsOn"</span><span class="pu">: [</span><span class="s">"api"</span><span class="pu">]</span>
       <span class="pu">},</span>
       <span class="pu">{</span>
         <span class="k">"id"</span><span class="pu">:</span> <span class="s">"frontend"</span><span class="pu">,</span>
-        <span class="k">"command"</span><span class="pu">:</span> <span class="s">"pnpm dev"</span><span class="pu">,</span>
+        <span class="k">"commands"</span><span class="pu">: [</span><span class="s">"pnpm install"</span><span class="pu">,</span> <span class="s">"pnpm dev"</span><span class="pu">],</span>
+        <span class="k">"port"</span><span class="pu">:</span> <span class="n">3000</span><span class="pu">,</span>
         <span class="k">"cwd"</span><span class="pu">:</span> <span class="s">"${workspaceFolder}/frontend"</span>
       <span class="pu">}</span>
     <span class="pu">]</span>

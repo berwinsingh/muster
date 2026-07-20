@@ -34,8 +34,10 @@ export const ServiceSchema = z
   .object({
     id: z.string().min(1),
     name: z.string().min(1),
-    command: z.string().min(1),
+    command: z.string().min(1).optional(),
+    commands: z.array(z.string().min(1)).min(1).optional(),
     cwd: z.string().optional(),
+    port: z.number().int().min(1).max(65535).optional(),
     env: z.record(z.string()).optional(),
     envFile: z.string().optional(),
     readyPattern: z.string().optional(),
@@ -47,7 +49,35 @@ export const ServiceSchema = z
     node: NodeConfigSchema,
     shell: ShellConfigSchema,
   })
-  .strict();
+  .strict()
+  .refine((s) => Boolean(s.command) !== Boolean(s.commands), {
+    message: 'Provide either "command" or "commands" (a list to run in sequence), not both',
+  });
+
+/**
+ * The single shell command a service runs: `command` as-is, or the
+ * `commands` list chained with `&&` so later steps only run when the
+ * earlier ones succeed. `${port}` is substituted when `port` is set.
+ */
+export function effectiveCommand(service: {
+  command?: string;
+  commands?: string[];
+  port?: number;
+}): string {
+  const joined = service.command ?? (service.commands ?? []).join(' && ');
+  if (service.port !== undefined) {
+    return joined.replace(/\$\{port\}/g, String(service.port));
+  }
+  return joined;
+}
+
+export const HooksSchema = z
+  .object({
+    preRun: z.array(z.string().min(1)).optional(),
+    postStop: z.array(z.string().min(1)).optional(),
+  })
+  .strict()
+  .optional();
 
 export const GroupSchema = z
   .object({
@@ -56,6 +86,7 @@ export const GroupSchema = z
     layout: z.enum(['dedicated', 'aggregated', 'split']).default('dedicated'),
     order: z.enum(['parallel', 'sequence']).default('parallel'),
     keepExistingTerminals: z.boolean().optional(),
+    hooks: HooksSchema,
     services: z.array(ServiceSchema).min(1),
   })
   .strict();
