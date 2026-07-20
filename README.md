@@ -97,6 +97,38 @@ Add a `monitoring` section to `.vscode/muster.json`:
 
 Default patterns are used when `monitoring` is omitted.
 
+### Service config highlights
+
+```jsonc
+{
+  "groups": [{
+    "id": "full-stack",
+    "label": "Full Stack Dev",
+    "hooks": { "preRun": ["docker compose up -d db"] },   // lifecycle hooks (VPN, compose, migrations)
+    "services": [
+      {
+        "id": "api",
+        "name": "API",
+        "command": "uvicorn main:app --port ${port}",
+        "port": 8000,                                     // injected as PORT, ${port} substitution,
+        "readyPattern": "startup complete"                // pre-launch in-use warning
+      },
+      {
+        "id": "frontend",
+        "name": "Web",
+        "commands": ["pnpm install", "pnpm dev"],         // stacked commands, chained with &&
+        "port": 3000,
+        "cwd": "${workspaceFolder}/frontend"
+      }
+    ]
+  }]
+}
+```
+
+Runtime auto-detection (venv/nvm suggestions in the wizard) is opt-in via the
+`muster.autoRuntimeDetection` setting; explicit `python.venv` / `node.version`
+config always applies.
+
 ## Commands
 
 | Command | Description |
