@@ -1,13 +1,10 @@
 import * as vscode from 'vscode';
-import { normalizeConfigIds } from './slugify';
-import { GroupConfig, MonitoringConfig, WorkspaceConfigSchema } from './schema';
+import { WorkspaceConfigSchema } from './schema';
 import { getWorkspaceConfigPath } from './paths';
+import { buildWorkspaceConfigPayload, WritableWorkspaceConfig } from './payload';
 
-export type WritableWorkspaceConfig = {
-  version: string;
-  groups: GroupConfig[];
-  monitoring?: MonitoringConfig;
-};
+export { buildWorkspaceConfigPayload, getExampleConfig } from './payload';
+export type { WritableWorkspaceConfig } from './payload';
 
 export async function readWritableWorkspaceConfig(
   workspaceFolder: vscode.WorkspaceFolder
@@ -33,20 +30,6 @@ export async function readWritableWorkspaceConfig(
   return { version: '1.0.0', groups: [] };
 }
 
-export function buildWorkspaceConfigPayload(config: WritableWorkspaceConfig): Record<string, unknown> {
-  const normalized = normalizeConfigIds(config);
-  const validated = WorkspaceConfigSchema.parse({
-    version: normalized.version ?? '1.0.0',
-    groups: normalized.groups,
-    monitoring: normalized.monitoring,
-  });
-
-  return {
-    $schema: '../schemas/muster.schema.json',
-    ...validated,
-  };
-}
-
 export async function saveWorkspaceConfig(
   workspaceFolder: vscode.WorkspaceFolder,
   config: WritableWorkspaceConfig
@@ -67,52 +50,4 @@ export async function saveWorkspaceConfig(
     uri,
     Buffer.from(JSON.stringify(payload, null, 2), 'utf-8')
   );
-}
-
-export function getExampleConfig(): WritableWorkspaceConfig {
-  return {
-    version: '1.0.0',
-    groups: [
-      {
-        id: 'dev',
-        label: 'Development',
-        layout: 'dedicated',
-        order: 'parallel',
-        services: [
-          {
-            id: 'api',
-            name: 'API Server',
-            command: 'npm run dev',
-            cwd: '${workspaceFolder}',
-          },
-          {
-            id: 'web',
-            name: 'Frontend',
-            command: 'pnpm dev',
-            cwd: '${workspaceFolder}/frontend',
-          },
-        ],
-      },
-    ],
-    monitoring: {
-      maxDays: 7,
-      includeDiagnostics: true,
-      patterns: [
-        {
-          id: 'error',
-          severity: 'error',
-          category: 'runtime',
-          regex: 'ERROR|Error:|Traceback|Exception',
-          sources: ['terminal'],
-        },
-        {
-          id: 'warning',
-          severity: 'warning',
-          category: 'runtime',
-          regex: 'WARN|Warning:',
-          sources: ['terminal'],
-        },
-      ],
-    },
-  };
 }

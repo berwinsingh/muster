@@ -7,6 +7,14 @@
  * palette (:) where you type what you want ("stop web").
  */
 import type { CliGroup, CliGroupStatus } from './client';
+import {
+  LEVEL_LABEL,
+  LogLevel,
+  TaggedLine,
+  appendNewLines,
+  filterLog,
+  nextLevel,
+} from './logFilter';
 import { buildActions, matchActions, PaletteAction } from './palette';
 import {
   A,
@@ -15,6 +23,7 @@ import {
   renderButtons,
   renderHeader,
   renderRow,
+  serviceColor,
   truncateAnsi,
   Row,
 } from './render';
@@ -55,11 +64,19 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
   let selected = 0;
   let filter = '';
   let mode: Mode = 'dash';
-  let logsTarget: { groupId: string; serviceId: string; name: string } | null = null;
+  // serviceId === null → combined view over every service in the group
+  let logsTarget: { groupId: string; serviceId: string | null; name: string } | null = null;
   let logLines: string[] = [];
   let logFilter = '';
+  let logLevel: LogLevel = 'all';
   let logScroll = 0; // 0 = pinned to tail
   let follow = true;
+  // combined-view state: merged tagged feed + per-service poll bookkeeping
+  let combined: TaggedLine[] = [];
+  let combinedCounts = new Map<string, number>();
+  let combinedServices: string[] = [];
+  let combinedFocus = -1; // index into combinedServices; -1 = all
+  let lastVisibleCount = 0; // lines shown by the last draw, for scroll clamping
   let flash = '';
   let flashTicks = 0; // poll ticks the current flash stays visible
   let connectionError = '';
@@ -93,7 +110,14 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
       rows = buildRows(groups, statuses, filter);
       if (selected >= rows.length) selected = Math.max(0, rows.length - 1);
       if (mode === 'logs' && logsTarget && follow) {
-        logLines = await source.logs(logsTarget.groupId, logsTarget.serviceId, 500);
+        if (logsTarget.serviceId === null) {
+          for (const id of combinedServices) {
+            const latest = await source.logs(logsTarget.groupId, id, 500).catch(() => []);
+            appendNewLines(combined, combinedCounts, id, latest);
+          }
+        } else {
+          logLines = await source.logs(logsTarget.groupId, logsTarget.serviceId, 500);
+        }
       }
       connectionError = '';
     } catch (err) {
@@ -114,23 +138,36 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
       out.push(`${A.red}▲ ${connectionError}${A.reset}`);
       out.push(`${A.dim}Retrying every second…${A.reset}`);
     } else if (mode === 'logs' && logsTarget) {
+      const isCombined = logsTarget.serviceId === null;
+      const focusId = isCombined && combinedFocus >= 0 ? combinedServices[combinedFocus] : null;
+      const scope = isCombined
+        ? `(${logsTarget.groupId} · ${focusId ? feedName(focusId) : 'all services'})`
+        : `(${logsTarget.groupId}/${logsTarget.serviceId})`;
       const filterTag = logFilter ? `  ${A.amber}/${logFilter}${A.reset}` : '';
+      const levelTag = logLevel !== 'all' ? `  ${A.amber}level: ${LEVEL_LABEL[logLevel]}${A.reset}` : '';
       out.push(
-        `${A.amber}logs${A.reset} ${A.bold}${logsTarget.name}${A.reset} ${A.dim}(${logsTarget.groupId}/${logsTarget.serviceId})${A.reset} ${follow ? `${A.green}following${A.reset}` : `${A.dim}paused${A.reset}`}${filterTag}`
+        `${A.amber}logs${A.reset} ${A.bold}${logsTarget.name}${A.reset} ${A.dim}${scope}${A.reset} ${follow ? `${A.green}following${A.reset}` : `${A.dim}paused${A.reset}`}${levelTag}${filterTag}`
       );
       out.push('');
-      const needle = logFilter.toLowerCase();
-      const visible = needle
-        ? logLines.filter((l) => l.toLowerCase().includes(needle))
+      const raw = isCombined
+        ? (focusId ? combined.filter((e) => e.serviceId === focusId) : combined).map(
+            (e) => `${combinedPrefix(e.serviceId)} ${e.line}`
+          )
         : logLines;
+      const visible = filterLog(raw, logLevel, logFilter);
+      lastVisibleCount = visible.length;
       const room = height - 6;
       const end = logScroll === 0 ? visible.length : visible.length - logScroll;
       const slice = visible.slice(Math.max(0, end - room), end);
       for (const line of slice) {
-        out.push(line.length > width ? line.slice(0, width - 1) : line);
+        out.push(truncateAnsi(line, width));
       }
-      if (needle && visible.length === 0) {
-        out.push(`${A.dim}No lines matching "${logFilter}".${A.reset}`);
+      if (visible.length === 0 && raw.length > 0) {
+        const parts = [
+          logLevel !== 'all' ? `level "${LEVEL_LABEL[logLevel]}"` : '',
+          logFilter ? `filter "${logFilter}"` : '',
+        ].filter(Boolean);
+        out.push(`${A.dim}No lines matching ${parts.join(' + ')} (${raw.length} total).${A.reset}`);
       }
     } else if (mode === 'palette') {
       out.push(`${A.invert} : ${paletteQuery}▏${A.reset} ${A.dim}(type an action — "stop web" — enter to run, esc to cancel)${A.reset}`);
@@ -170,7 +207,19 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
       footer.push(`${A.dim}↑↓ choose · enter run · esc cancel${A.reset}`);
       footerButtons = [];
     } else {
-      const bar = renderButtons(mode === 'logs' ? 'logs' : 'dash', width, opts.quitLabel);
+      const logsBar =
+        mode === 'logs' && logsTarget
+          ? {
+              level: LEVEL_LABEL[logLevel],
+              focus:
+                logsTarget.serviceId === null
+                  ? combinedFocus >= 0
+                    ? feedName(combinedServices[combinedFocus])
+                    : 'all'
+                  : undefined,
+            }
+          : undefined;
+      const bar = renderButtons(mode === 'logs' ? 'logs' : 'dash', width, opts.quitLabel, logsBar);
       footer.push(bar.line);
       footerButtons = bar.buttons;
     }
@@ -206,13 +255,50 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
     await performAction(action, row.group.id, row.kind === 'service' ? row.serviceId : undefined);
   }
 
+  /** Display name for a feed id (the narrator feed's id is '@muster'). */
+  function feedName(id: string): string {
+    return id === opts.groupFeedId ? 'muster' : id;
+  }
+
+  function combinedPrefix(id: string): string {
+    if (opts.groupFeedId && id === opts.groupFeedId) return `${A.amber}[muster]${A.reset}`;
+    const feedOffset = opts.groupFeedId && combinedServices[0] === opts.groupFeedId ? 1 : 0;
+    return `${serviceColor(combinedServices.indexOf(id) - feedOffset)}[${id}]${A.reset}`;
+  }
+
   async function openLogs(groupId: string, serviceId: string, name: string): Promise<void> {
     logsTarget = { groupId, serviceId, name };
     mode = 'logs';
     follow = true;
     logScroll = 0;
     logFilter = '';
+    logLevel = 'all';
     logLines = await source.logs(groupId, serviceId, 500).catch(() => []);
+  }
+
+  /**
+   * Combined view: every service in the group in one feed, each line
+   * tagged [service]. The initial fill dumps each service's tail as its
+   * own block; live updates then interleave in arrival order.
+   */
+  async function openCombinedLogs(group: CliGroup): Promise<void> {
+    logsTarget = { groupId: group.id, serviceId: null, name: group.label };
+    mode = 'logs';
+    follow = true;
+    logScroll = 0;
+    logFilter = '';
+    logLevel = 'all';
+    combined = [];
+    combinedCounts = new Map();
+    combinedFocus = -1;
+    combinedServices = [
+      ...(opts.groupFeedId ? [opts.groupFeedId] : []),
+      ...group.services.map((s) => s.id),
+    ];
+    for (const id of combinedServices) {
+      const latest = await source.logs(group.id, id, 300).catch(() => []);
+      appendNewLines(combined, combinedCounts, id, latest);
+    }
   }
 
   async function executePaletteAction(action: PaletteAction): Promise<void> {
@@ -227,6 +313,11 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
       case 'logs':
         await openLogs(action.groupId!, action.serviceId!, action.serviceId!);
         return;
+      case 'logs-group': {
+        const row = rows.find((r) => r.kind === 'group' && r.group.id === action.groupId);
+        if (row) await openCombinedLogs(row.group);
+        return;
+      }
       case 'filter-clear':
         filter = '';
         await refresh();
@@ -242,7 +333,7 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
     if (button === 64 || button === 65) {
       const delta = button === 64 ? -1 : 1;
       if (mode === 'logs') {
-        if (delta < 0) { follow = false; logScroll = Math.min(logScroll + 3, Math.max(0, logLines.length - 5)); }
+        if (delta < 0) { follow = false; logScroll = Math.min(logScroll + 3, Math.max(0, lastVisibleCount - 5)); }
         else { logScroll = Math.max(0, logScroll - 3); if (logScroll === 0) follow = true; }
       } else if (mode === 'dash') {
         selected = Math.max(0, Math.min(rows.length - 1, selected + delta));
@@ -318,10 +409,16 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
 
     if (mode === 'logs') {
       if (key === 'q') { running = false; return; }
-      if (key === '\x1b') { mode = 'dash'; logsTarget = null; logFilter = ''; return; }
+      if (key === '\x1b') { mode = 'dash'; logsTarget = null; logFilter = ''; logLevel = 'all'; return; }
       if (key === 'f') { follow = !follow; logScroll = 0; return; }
+      if (key === 'v') { logLevel = nextLevel(logLevel); logScroll = 0; return; }
+      if (key === '\t' && logsTarget?.serviceId === null) {
+        combinedFocus = combinedFocus + 1 >= combinedServices.length ? -1 : combinedFocus + 1;
+        logScroll = 0;
+        return;
+      }
       if (key === '/') { filterReturnMode = 'logs'; mode = 'filter'; return; }
-      if (key === '\x1b[A') { follow = false; logScroll = Math.min(logScroll + 3, Math.max(0, logLines.length - 5)); return; }
+      if (key === '\x1b[A') { follow = false; logScroll = Math.min(logScroll + 3, Math.max(0, lastVisibleCount - 5)); return; }
       if (key === '\x1b[B') { logScroll = Math.max(0, logScroll - 3); if (logScroll === 0) follow = true; return; }
       return;
     }
@@ -359,9 +456,14 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
         const row = rows[selected];
         if (row?.kind === 'service') {
           await openLogs(row.group.id, row.serviceId, row.name);
-        } else if (row?.kind === 'group' && opts.groupFeedId) {
-          await openLogs(row.group.id, opts.groupFeedId, 'muster');
+        } else if (row?.kind === 'group') {
+          await openCombinedLogs(row.group);
         }
+        return;
+      }
+      case 'a': {
+        const row = rows[selected];
+        if (row) await openCombinedLogs(row.group);
         return;
       }
     }
