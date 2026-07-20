@@ -50,10 +50,12 @@ Muster is a VS Code extension for orchestrating dev server groups — configure 
 
 ## The `muster` CLI
 
-Control groups from any terminal while VS Code (or Cursor) is open with the
-extension active. The CLI connects through the same localhost IPC + discovery
-mechanism as the MCP server, so trust checks apply and everything stays
-visible in VS Code terminals.
+Two modes. **`muster up` is fully standalone** — it loads
+`.vscode/muster.json` itself (walking up from the current directory) and
+supervises the processes directly, no editor involved. Every other command
+is a client of the running VS Code/Cursor extension via the same localhost
+IPC + discovery mechanism as the MCP server, so trust checks apply and
+everything stays visible in VS Code terminals.
 
 **Getting it on your PATH** — three ways, pick whichever fits:
 
@@ -74,6 +76,7 @@ extension).
 
 | Command | What it does |
 |---------|--------------|
+| `muster up [group]` | **Standalone** — run a group right in the terminal, no VS Code required: same ordering/ready/hooks semantics, per-service prefixed logs, Ctrl+C stops the whole process tree |
 | `muster` | Interactive dashboard (TUI) |
 | `muster ls [--json]` | Groups, services, ports, and live status |
 | `muster run <group> [service]` | Start a group (or one service), wait for readiness, report `N/N running` |
