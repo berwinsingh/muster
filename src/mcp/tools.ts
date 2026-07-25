@@ -70,6 +70,16 @@ export async function describeConfig(): Promise<unknown> {
   return ipcFetch('/describe');
 }
 
+/**
+ * What is runnable in this workspace, detected from the files on disk.
+ * An agent can read a repo itself, but that is guesswork it pays context
+ * for; this returns the same list the CLI wizard offers, so create_server_group
+ * can be called with a command and cwd that are known to exist.
+ */
+export async function suggestServices(): Promise<unknown> {
+  return ipcFetch('/suggest-services');
+}
+
 export type NewServiceInput = {
   id: string;
   name?: string;

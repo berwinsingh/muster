@@ -1,6 +1,10 @@
+/**
+ * Deliberately vscode-free: consumed by both the visual editor (which has a
+ * vscode.WorkspaceFolder to hand it) and the CLI wizard (which has nothing
+ * but a plain root path, e.g. running headless with no editor open at all).
+ */
 import * as fs from 'fs';
 import * as path from 'path';
-import * as vscode from 'vscode';
 
 export type CommandSuggestion = {
   label: string;
@@ -152,14 +156,15 @@ function walkWorkspace(root: string, maxDepth = 3): Array<{ abs: string; rel: st
   return results;
 }
 
-export function scanCommandSuggestions(
-  workspaceFolder: vscode.WorkspaceFolder | undefined
-): CommandSuggestion[] {
-  if (!workspaceFolder) {
+/**
+ * Suggestions for a workspace root, common fallbacks first. Pass null when
+ * there is no workspace to scan and only the generic list is wanted.
+ */
+export function scanCommandSuggestions(root: string | null | undefined): CommandSuggestion[] {
+  if (!root) {
     return COMMON_COMMANDS;
   }
 
-  const root = workspaceFolder.uri.fsPath;
   const suggestions: CommandSuggestion[] = [...COMMON_COMMANDS];
   const seen = new Set<string>();
 
@@ -177,5 +182,73 @@ export function scanCommandSuggestions(
     }
     seen.add(key);
     return true;
+  });
+}
+
+/** A runnable service actually found on disk, ready to offer as a choice. */
+export type DetectedService = {
+  /** Directory relative to the root; '.' for the root itself. */
+  dir: string;
+  command: string;
+  /** What gave it away — "package.json", "Makefile", … */
+  source: string;
+  /** Suggested service id, unique across the returned list. */
+  id: string;
+};
+
+function idFor(dir: string, command: string): string {
+  // The folder name is what a human would call it ("web", "api"). At the
+  // root there is no folder name to use, and the binary alone is a poor id
+  // — every Makefile target would become "make" — so take the target/script
+  // instead, which is what actually distinguishes them.
+  const base = dir === '.' ? '' : path.basename(dir);
+  const words = command.trim().split(/\s+/);
+  const raw =
+    base ||
+    (words.length > 1 ? words[words.length - 1] : path.basename(words[0] ?? 'service'));
+  const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return slug || 'service';
+}
+
+/**
+ * Only what was genuinely found in this project — no generic fallbacks.
+ * A picker must not present "npm run dev" as discovered when it wasn't;
+ * that is how people end up with a group that cannot start.
+ */
+export function detectRunnableServices(root: string): DetectedService[] {
+  const found: CommandSuggestion[] = [];
+  for (const { abs, rel } of walkWorkspace(root)) {
+    scanPackageJson(abs, rel, found);
+    scanMakefile(abs, rel, found);
+    scanPyProject(abs, rel, found);
+    scanGoMod(abs, rel, found);
+  }
+
+  const seen = new Set<string>();
+  const usedIds = new Set<string>();
+  const out: DetectedService[] = [];
+
+  for (const s of found) {
+    const dir = s.cwd
+      ? s.cwd.replace(/^\$\{workspaceFolder\}\/?/, '') || '.'
+      : '.';
+    const key = `${s.command}@${dir}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    let id = idFor(dir, s.command);
+    for (let n = 2; usedIds.has(id); n++) {
+      id = `${idFor(dir, s.command)}-${n}`;
+    }
+    usedIds.add(id);
+
+    out.push({ dir, command: s.command, source: s.source, id });
+  }
+
+  // Shallowest first: in a monorepo the top-level app is usually the one
+  // someone wants, and deeply nested tooling is rarely the answer.
+  return out.sort((a, b) => {
+    const depth = (d: string): number => (d === '.' ? 0 : d.split('/').length);
+    return depth(a.dir) - depth(b.dir) || a.dir.localeCompare(b.dir);
   });
 }

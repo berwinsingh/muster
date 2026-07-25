@@ -945,7 +945,7 @@ export async function openVisualConfigEditor(
         }
       }
     }
-    const suggestions = scanCommandSuggestions(folder);
+    const suggestions = scanCommandSuggestions(folder?.uri.fsPath ?? null);
     panel.webview.postMessage({ type: 'init', config, suggestions });
   };
 

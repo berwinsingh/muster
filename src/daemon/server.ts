@@ -24,6 +24,7 @@ import {
   updateGroup,
   updateService,
 } from '../config/mutate';
+import { detectRunnableServices } from '../config/commandSuggestions';
 import { WritableWorkspaceConfig, getExampleConfig } from '../config/payload';
 import { initLocalConfig, openLocalConfig, saveLocalConfig } from '../cli/localConfig';
 import { loadHeadlessConfig } from '../cli/headlessConfig';
@@ -129,6 +130,11 @@ export function startDaemonServer(opts: DaemonServerOptions): Promise<DaemonServ
           return;
         }
         jsonResponse(res, 200, await source.status(groupId));
+        return;
+      }
+
+      if (method === 'GET' && url.pathname === '/suggest-services') {
+        jsonResponse(res, 200, { root, services: detectRunnableServices(root) });
         return;
       }
 

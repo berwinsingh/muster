@@ -1,5 +1,6 @@
 import * as http from 'http';
 import * as vscode from 'vscode';
+import { detectRunnableServices } from '../config/commandSuggestions';
 import { loadMergedConfig, loadMergedConfigFromPaths } from '../config/loader';
 import { effectiveCommand } from '../config/schema';
 import {
@@ -85,6 +86,15 @@ export function startIpcServer(
           return;
         }
         jsonResponse(res, 200, status);
+        return;
+      }
+
+      if (method === 'GET' && url.pathname === '/suggest-services') {
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
+        jsonResponse(res, 200, {
+          root: workspaceRoot,
+          services: workspaceRoot ? detectRunnableServices(workspaceRoot) : [],
+        });
         return;
       }
 
