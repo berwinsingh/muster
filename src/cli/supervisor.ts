@@ -24,9 +24,13 @@ import {
   newLineBuffer,
   tailLines,
 } from './liveState';
+import { stripAnsi } from './logFilter';
 import { A } from './render';
 
 const PALETTE = [A.green, A.blue, A.yellow, A.amber];
+
+/** How long a readyPattern may go unmatched before the start is called off. */
+const READY_TIMEOUT_MS = 120_000;
 
 type Running = {
   service: ServiceConfig;
@@ -206,8 +210,14 @@ export class Supervisor {
       this.muster(`${A.dim}waiting for ready pattern on ${service.id}…${A.reset}`);
       const regex = new RegExp(service.readyPattern);
       const start = Date.now();
-      while (Date.now() - start < 120_000) {
-        if (regex.test(bufferedText(entry.buf))) {
+      while (Date.now() - start < READY_TIMEOUT_MS) {
+        // Match against ANSI-stripped text. Dev servers colour their output,
+        // and the escape codes land *inside* the phrase people write their
+        // pattern against — Next.js emits "✓\x1b[0m Ready in 1.2s", so a
+        // readyPattern of "✓ Ready" could never match the raw bytes and the
+        // group hung until the timeout with dependents never starting.
+        // The extension strips on ingestion; this keeps the two in step.
+        if (regex.test(stripAnsi(bufferedText(entry.buf)))) {
           this.muster(`ready pattern matched on ${service.id}`);
           entry.status = 'running';
           break;
@@ -218,7 +228,16 @@ export class Supervisor {
         await new Promise((r) => setTimeout(r, 400));
       }
       if (entry.status !== 'running') {
-        throw new Error(`${service.id} did not match readyPattern within 120s`);
+        // A bare "didn't match" leaves you guessing what the service
+        // actually printed — show its tail so the mismatch is obvious.
+        const tail = tailLines(entry.buf, 10).map((l) => stripAnsi(l));
+        const seen = tail.length
+          ? `\n${A.dim}last output from ${service.id}:${A.reset}\n  ${tail.join('\n  ')}`
+          : `\n${A.dim}(${service.id} produced no output at all)${A.reset}`;
+        throw new Error(
+          `${service.id} did not match readyPattern /${service.readyPattern}/ within ` +
+            `${Math.round(READY_TIMEOUT_MS / 1000)}s.${seen}`
+        );
       }
     }
     const healthUrl =
@@ -238,7 +257,13 @@ export class Supervisor {
         }
         if (!ok) await new Promise((r) => setTimeout(r, 1000));
       }
-      if (!ok) throw new Error(`${service.id} health check failed: ${healthUrl}`);
+      if (!ok) {
+        const tail = tailLines(entry.buf, 10).map((l) => stripAnsi(l));
+        const seen = tail.length
+          ? `\n${A.dim}last output from ${service.id}:${A.reset}\n  ${tail.join('\n  ')}`
+          : `\n${A.dim}(${service.id} produced no output at all)${A.reset}`;
+        throw new Error(`${service.id} health check never passed: ${healthUrl}${seen}`);
+      }
       this.muster(`health check passed on ${service.id}`);
     }
     if (entry.status === 'starting') entry.status = 'running';
