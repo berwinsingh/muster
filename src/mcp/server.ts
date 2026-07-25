@@ -20,6 +20,7 @@ import {
   restartServerGroup,
   runServerGroup,
   stopServerGroup,
+  suggestServices,
 } from './tools';
 
 const server = new McpServer(
@@ -51,6 +52,13 @@ server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['groupId'],
         additionalProperties: false,
       },
+      annotations: { readOnlyHint: true },
+    },
+    {
+      name: 'suggest_services',
+      description:
+        'Detect what is actually runnable in this workspace (package.json scripts with the right package manager, Makefile targets, pyproject, go.mod), each with its directory and command. Call this before create_server_group so the group is built from commands known to exist, instead of guessing from a directory listing.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true },
     },
     {
@@ -235,6 +243,10 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'get_group_status': {
         const { groupId } = GroupIdSchema.parse(args);
         const result = await getGroupStatus(groupId);
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      }
+      case 'suggest_services': {
+        const result = await suggestServices();
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
       case 'create_server_group': {

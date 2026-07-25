@@ -12,6 +12,7 @@ import {
   restartServerGroup,
   runServerGroup,
   stopServerGroup,
+  suggestServices,
 } from '../mcp/tools';
 
 let stateDir: string;
@@ -111,6 +112,34 @@ describe('MCP tools reach a standalone daemon (no VS Code involved)', () => {
     );
 
     await stopServerGroup('web');
+  });
+
+  it('suggest_services lets an agent discover a stack before defining it', async () => {
+    // The whole point: the agent should not have to guess a command or a
+    // path from a directory listing — it asks what is runnable, then builds
+    // the group out of exactly that.
+    fs.mkdirSync(path.join(root, 'apps', 'web'), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, 'apps', 'web', 'package.json'),
+      JSON.stringify({ name: 'web', scripts: { dev: 'next dev' } })
+    );
+    fs.writeFileSync(path.join(root, 'apps', 'web', 'pnpm-lock.yaml'), '');
+
+    const found = (await suggestServices()) as {
+      services: { id: string; dir: string; command: string; source: string }[];
+    };
+    const web = found.services.find((s) => s.dir === 'apps/web');
+    assert.ok(web, `expected apps/web to be detected, got ${JSON.stringify(found.services)}`);
+    assert.equal(web!.command, 'pnpm run dev'); // lockfile picked the manager
+    assert.equal(web!.id, 'web');
+
+    // Now build a group straight from the detection, no guesswork.
+    await createServerGroup({
+      id: 'discovered',
+      service: { id: web!.id, command: web!.command, cwd: web!.dir },
+    });
+    const groups = (await listServerGroups()) as { groups: { id: string }[] };
+    assert.ok(groups.groups.some((g) => g.id === 'discovered'));
   });
 
   it('restart_server_group works after a stop', async () => {
