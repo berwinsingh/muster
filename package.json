@@ -322,7 +322,7 @@
         "muster.keepExistingTerminals": {
           "type": "boolean",
           "default": true,
-          "description": "Do not close existing terminals when starting a group"
+          "description": "When starting a group, leave any terminals left over from a previous run of that same group open instead of closing them first. Does not affect Stop or Restart — stopping always keeps the terminal and its scrollback (use the CLI's `muster stop --force` to close it)."
         },
         "muster.autoRuntimeDetection": {
           "type": "boolean",

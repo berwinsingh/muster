@@ -5,7 +5,24 @@
  */
 import type { CliGroup, CliGroupStatus } from './client';
 
-export const A = {
+/**
+ * Whether to emit ANSI colour, decided once at startup.
+ *
+ * Honours the informal but widely-supported conventions: NO_COLOR (any
+ * value) forces plain, FORCE_COLOR forces colour even when piped, and
+ * otherwise colour follows "is stdout a terminal". Without this, piping
+ * (`muster ls | grep api`) injected escape sequences into the middle of
+ * the text being matched.
+ */
+export function colorEnabled(env = process.env, isTTY = process.stdout.isTTY): boolean {
+  if (env.NO_COLOR !== undefined && env.NO_COLOR !== '') return false;
+  if (env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '' && env.FORCE_COLOR !== '0') {
+    return true;
+  }
+  return Boolean(isTTY);
+}
+
+const ANSI = {
   amber: '\x1b[38;5;215m',
   green: '\x1b[32m',
   red: '\x1b[31m',
@@ -16,6 +33,30 @@ export const A = {
   invert: '\x1b[7m',
   reset: '\x1b[0m',
 };
+
+const PLAIN: typeof ANSI = {
+  amber: '',
+  green: '',
+  red: '',
+  yellow: '',
+  blue: '',
+  dim: '',
+  bold: '',
+  invert: '',
+  reset: '',
+};
+
+/**
+ * The palette every call site interpolates. Blanked wholesale rather than
+ * wrapped in a helper so that adding colour anywhere stays a one-token
+ * change and can never accidentally bypass the NO_COLOR check.
+ */
+export const A: typeof ANSI = colorEnabled() ? { ...ANSI } : { ...PLAIN };
+
+/** Re-evaluate the palette — for tests, and the TUI, which always colours. */
+export function setColorEnabled(enabled: boolean): void {
+  Object.assign(A, enabled ? ANSI : PLAIN);
+}
 
 export function statusDot(status: string): string {
   switch (status) {
@@ -117,11 +158,28 @@ export function renderHeader(workspace: string, filter: string, width: number): 
 
 export type Button = { key: string; label: string; x1: number; x2: number };
 
-/** Colors used to tag services in combined log views (index-stable). */
-export const SERVICE_COLORS = [A.green, A.blue, A.yellow, A.amber];
+/**
+ * Colours used to tag services in combined log views, index-stable so a
+ * given service keeps its colour for the whole session. Read through `A`
+ * at call time rather than captured, so toggling colour off actually
+ * applies here too.
+ */
+const SERVICE_COLOR_KEYS = ['green', 'blue', 'yellow', 'amber'] as const;
 
 export function serviceColor(index: number): string {
-  return SERVICE_COLORS[Math.max(0, index) % SERVICE_COLORS.length];
+  return A[SERVICE_COLOR_KEYS[Math.max(0, index) % SERVICE_COLOR_KEYS.length]];
+}
+
+/**
+ * Tint a log line by its detected severity, so errors stand out when
+ * scanning a wall of output. Only errors and warnings are coloured —
+ * tinting ordinary lines would wash out the signal, and many dev servers
+ * already colour their own output, which is left untouched.
+ */
+export function colorByLevel(line: string, level: 'error' | 'warn' | 'info'): string {
+  if (level === 'error') return `${A.red}${line}${A.reset}`;
+  if (level === 'warn') return `${A.yellow}${line}${A.reset}`;
+  return line;
 }
 
 export type LogsBarState = {

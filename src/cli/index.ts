@@ -3,10 +3,13 @@
  * muster — control your dev server groups from the terminal.
  *
  * Lifecycle commands (run/stop/status/logs, and the default dashboard)
- * drive the Muster VS Code extension over IPC. Config commands (init/
- * create/add/edit/delete/detect) and `muster up` are fully standalone:
- * with no extension reachable they read and write .vscode/muster.json
- * directly, so the CLI is complete without VS Code ever being open.
+ * drive whichever server is reachable over IPC — a standalone `muster
+ * daemon` or the VS Code extension, same wire protocol either way, daemon
+ * preferred when both are running for a workspace. Config commands (init/
+ * create/add/edit/delete/detect), `muster up`, and `muster daemon` are
+ * fully standalone: with nothing reachable they read and write
+ * .vscode/muster.json directly, so the CLI is complete without VS Code
+ * ever being open.
  */
 import * as path from 'path';
 import { CliGroup, CliGroupStatus, IpcClient, NOT_RUNNING } from './client';
@@ -17,6 +20,7 @@ import {
   LogLevel,
   TaggedLine,
   appendNewLines,
+  classifyLine,
   filterLog,
   parseLevel,
 } from './logFilter';
@@ -32,10 +36,14 @@ import {
   updateService,
 } from '../config/mutate';
 import { effectiveCommand } from '../config/schema';
-import { LocalSource, MUSTER_FEED } from './localSource';
-import { A, plainGroupList, serviceColor, statusDot } from './render';
+import { openGroupLogStore } from '../logs/forGroup';
+import { daemonStart, daemonStatus, daemonStop } from './daemonCli';
+import { promptMissingCreateFields } from './quickCreate';
+import { LocalSource, MultiLocalSource, MUSTER_FEED } from './localSource';
+import { A, colorByLevel, plainGroupList, serviceColor, statusDot } from './render';
 import { Supervisor } from './supervisor';
 import { runTui } from './tui';
+import { runFirstGroupWizard } from './wizard';
 
 /**
  * `muster up [group]` — run a group standalone, no VS Code required.
@@ -43,13 +51,38 @@ import { runTui } from './tui';
  * the local supervisor; `--plain` (or a non-TTY) streams flat logs instead.
  */
 async function runHeadless(rest: string[]): Promise<void> {
-  const root = findConfigRoot(process.env.MUSTER_WORKSPACE ?? process.cwd());
-  if (!root) {
-    fail(
-      'No .vscode/muster.json found here or in any parent directory. Run "muster init" to scaffold one — see https://github.com/berwinsingh/muster'
-    );
+  const start = process.env.MUSTER_WORKSPACE ?? process.cwd();
+  let root = findConfigRoot(start);
+  const interactive = Boolean(process.stdout.isTTY && process.stdin.isTTY);
+
+  // Nothing to run yet. Someone who typed `muster up` has already said what
+  // they want — offer to set it up rather than sending them away to read
+  // about `init` and `create` first. Non-interactive (CI, piped) still gets
+  // the explicit instructions, since there is nobody there to answer.
+  const hasGroups = root ? loadHeadlessConfig(root).groups.length > 0 : false;
+  if (!hasGroups) {
+    if (!interactive) {
+      fail(
+        root
+          ? 'The config has no groups. Add one with: muster create <group> --command "<cmd>"'
+          : 'No .vscode/muster.json found here or in any parent directory. Run "muster init" to scaffold one — see https://github.com/berwinsingh/muster'
+      );
+    }
+    const created = await runFirstGroupWizard(root ?? path.resolve(start));
+    if (!created) return;
+    root = findConfigRoot(root ?? start) ?? root;
+    if (!root) return;
+    if (!created.start) {
+      process.stdout.write(
+        `${A.dim}Run it whenever you're ready: ${A.reset}${A.bold}muster up ${created.groupId}${A.reset}\n`
+      );
+      return;
+    }
   }
-  const { groups } = loadHeadlessConfig(root);
+
+  // Definite by here: every path above either set it or returned/failed.
+  const configRoot = root as string;
+  const { groups } = loadHeadlessConfig(configRoot);
   if (groups.length === 0) {
     fail('The config has no groups. Add one with: muster create <group> --command "<cmd>"');
   }
@@ -74,13 +107,20 @@ async function runHeadless(rest: string[]): Promise<void> {
     !process.stdout.isTTY ||
     !process.stdin.isTTY;
 
+  // Persist logs to ~/.muster/logs so history survives stop/restart and the
+  // process exiting; prune this group's aged-out history up front.
+  const retentionWarnings: string[] = [];
+  const { store: logStore } = openGroupLogStore(configRoot, group, (w) => retentionWarnings.push(w));
+
   if (!wantPlain) {
     // Dashboard mode: the supervisor holds status + log buffers; the TUI
     // renders them exactly like the remote dashboard. Quit tears down.
-    const supervisor = new Supervisor(group, root, undefined, detect);
+    const supervisor = new Supervisor(group, configRoot, undefined, detect, logStore);
     if (othersNote) supervisor.note(`${A.dim}${othersNote}${A.reset}`);
+    for (const w of retentionWarnings) supervisor.note(`${A.yellow}⚠ ${w}${A.reset}`);
     let teardown: Promise<void> | null = null;
-    const shutdown = (): Promise<void> => (teardown ??= supervisor.down());
+    const shutdown = (): Promise<void> =>
+      (teardown ??= supervisor.down().finally(() => logStore.dispose()));
     process.on('SIGINT', () => void shutdown().then(() => process.exit(0)));
     process.on('SIGTERM', () => void shutdown().then(() => process.exit(0)));
 
@@ -95,12 +135,24 @@ async function runHeadless(rest: string[]): Promise<void> {
   }
 
   if (othersNote) process.stdout.write(`${A.dim}${othersNote}${A.reset}\n`);
-  const supervisor = new Supervisor(group, root, (line) => process.stdout.write(line + '\n'), detect);
+  for (const w of retentionWarnings) {
+    process.stdout.write(`${A.yellow}⚠${A.reset} ${w}\n`);
+  }
+  const supervisor = new Supervisor(
+    group,
+    configRoot,
+    (line) => process.stdout.write(line + '\n'),
+    detect,
+    logStore
+  );
   let shuttingDown = false;
   const shutdown = (): void => {
     if (shuttingDown) return;
     shuttingDown = true;
-    void supervisor.down().then(() => process.exit(0));
+    void supervisor.down().then(() => {
+      logStore.dispose();
+      process.exit(0);
+    });
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
@@ -117,6 +169,7 @@ async function runHeadless(rest: string[]): Promise<void> {
   const watch = setInterval(() => {
     if (!supervisor.alive && !shuttingDown) {
       clearInterval(watch);
+      logStore.dispose();
       process.stdout.write(`${A.amber}[muster]${A.reset} all services have exited\n`);
       process.exit(0);
     }
@@ -127,12 +180,26 @@ const HELP = `
 ${A.amber}${A.bold}muster${A.reset} — one click (or one command), full stack running
 
 Run (no VS Code needed):
-  muster up [group] [--no-detect]   Run a group RIGHT HERE with the full
-                             dashboard (same hotkeys/mouse as \`muster\`);
-                             q or Ctrl+C stops everything. Environments
-                             (venvs, .nvmrc) are detected and activated
-                             automatically; --no-detect turns that off.
+  muster                     THE dashboard. With VS Code running it drives
+                             the extension; without it, it runs your groups
+                             right here — and with no config yet, it walks
+                             you through creating your first group.
+  muster up [group] [--no-detect]   Run one group immediately with the same
+                             dashboard; q or Ctrl+C stops everything.
+                             Environments (venvs, .nvmrc) are detected and
+                             activated automatically; --no-detect opts out.
                              --plain streams flat logs instead (auto when piped).
+                             --detach hands the group to a background daemon
+                             instead — it keeps running after this exits.
+
+Background daemon (no VS Code, survives closing the terminal):
+  muster daemon start [--allow-agent-actions] [--no-detect]
+                             Start the daemon for this workspace.
+                             --allow-agent-actions lets MCP tools (Claude
+                             Code, Codex, …) run/stop/restart without you
+                             typing the command yourself — off by default.
+  muster daemon stop         Stop it and everything it's running
+  muster daemon status       Is it running, and on what port
 
 Configure (no VS Code needed — edits .vscode/muster.json directly;
 with VS Code open, changes go through the extension and refresh live):
@@ -152,15 +219,19 @@ with VS Code open, changes go through the extension and refresh live):
   muster ls [--json]         List groups and services (+ live status if
                              VS Code is running)
 
-Control a running VS Code extension:
-  muster                     Interactive dashboard (TUI)
+Control a running daemon or VS Code extension (whichever is reachable —
+a daemon is preferred when both are running for this workspace):
   muster run <group> [service]      Start a group (or one service) and wait
   muster stop <group> [service]     Stop a group or a single service
   muster restart <group> [service]  Restart a group or a single service
   muster status <group>      Show per-service status
   muster logs <group> [service] [-n N] [-f] [--level error|warn|info]
+                [--grep TEXT]
                              Show (or follow) output. Without a service:
                              all services combined, tagged [service].
+                             Errors and warnings are tinted; --grep keeps
+                             only lines containing TEXT. Colour turns itself
+                             off when piped (or set NO_COLOR).
 
 Dashboard hotkeys: r run · s stop · x restart · l logs · a all logs ·
                    / filter · : command palette · q quit
@@ -300,9 +371,57 @@ async function main(): Promise<void> {
 
   // `muster up` is fully standalone — it reads the config and supervises
   // the processes itself, so it must run before any attempt to reach a
-  // VS Code extension.
-  if (command === 'up') {
+  // VS Code extension. `--detach` is the one exception: it hands the group
+  // off to a background daemon instead of running in the foreground.
+  if (command === 'up' && !rest.includes('--detach')) {
     await runHeadless(rest);
+    return;
+  }
+
+  // `muster daemon` manages the background process itself — it must also
+  // run before any attempt to reach a VS Code extension.
+  if (command === 'daemon') {
+    const sub = rest[0];
+    if (sub === 'start') {
+      await daemonStart(rest.slice(1));
+    } else if (sub === 'stop') {
+      await daemonStop();
+    } else if (sub === 'status') {
+      await daemonStatus();
+    } else {
+      fail('Usage: muster daemon start|stop|status [--no-detect] [--allow-agent-actions]');
+    }
+    return;
+  }
+
+  if (command === 'up' && rest.includes('--detach')) {
+    const groupId = rest.find((a) => !a.startsWith('-'));
+    await daemonStart(rest.filter((a) => a !== '--detach'));
+    const detachedClient = connectOrNull();
+    if (!detachedClient) {
+      fail('Daemon started but could not be reached — try "muster daemon status".');
+    }
+    const groups = await detachedClient.groups();
+    const target = groupId ? groups.find((g) => g.id === groupId) : groups[0];
+    if (!target) {
+      fail(groupId ? `Unknown group "${groupId}"` : 'No groups configured.');
+    }
+    process.stdout.write(`${A.green}❯${A.reset} ${A.bold}muster up ${target.id} --detach${A.reset}\n`);
+    await detachedClient.run(target.id);
+    const status = await waitForGroup(detachedClient, target.id);
+    printStatus(status);
+    const running = Object.values(status.services).filter((s) => s === 'running').length;
+    const total = Object.keys(status.services).length;
+    if (status.state === 'running') {
+      process.stdout.write(
+        `${ok(`${target.id} · ${A.green}${running}/${total} services running${A.reset} — detached, "muster logs ${target.id}" to follow`)}\n`
+      );
+    } else {
+      process.stdout.write(
+        `${A.amber}[muster]${A.reset} ${target.id} · ${running}/${total} running (state: ${status.state})\n`
+      );
+      process.exitCode = status.state === 'failed' ? 1 : 0;
+    }
     return;
   }
 
@@ -311,13 +430,40 @@ async function main(): Promise<void> {
   switch (command) {
     case undefined:
     case 'ui': {
-      if (!client) {
-        fail(`${NOT_RUNNING} For a dashboard with no VS Code, run "muster up" instead.`);
+      if (!process.stdout.isTTY || !process.stdin.isTTY) {
+        fail('The dashboard needs a TTY. Try "muster ls" for plain output, or "muster up --plain" to stream a group.');
       }
-      if (!process.stdout.isTTY) {
-        fail('The dashboard needs a TTY. Try "muster ls" for plain output.');
+      if (client) {
+        await runTui(client);
+        return;
       }
-      await runTui(client);
+
+      // No VS Code: run the dashboard on the local config. With no
+      // config (or no groups) yet, walk through creating the first one.
+      const start = process.env.MUSTER_WORKSPACE ?? process.cwd();
+      let local = openLocalConfig(start);
+      let autoRun: string | null = null;
+      if (!local || local.config.groups.length === 0) {
+        const created = await runFirstGroupWizard(local?.root ?? path.resolve(start));
+        if (!created) return;
+        if (created.start) autoRun = created.groupId;
+        local = openLocalConfig(local?.root ?? start);
+        if (!local) return;
+      }
+
+      const { groups } = loadHeadlessConfig(local.root);
+      const source = new MultiLocalSource(local.root, groups, !rest.includes('--no-detect'), true);
+      let teardown: Promise<void> | null = null;
+      const shutdown = (): Promise<void> => (teardown ??= source.downAll());
+      process.on('SIGINT', () => void shutdown().then(() => process.exit(0)));
+      process.on('SIGTERM', () => void shutdown().then(() => process.exit(0)));
+      if (autoRun) void source.run(autoRun);
+      await runTui(source, {
+        groupFeedId: MUSTER_FEED,
+        quitLabel: 'quit (stops all)',
+        statusLine: () => source.lastActivity,
+        onQuit: shutdown,
+      });
       return;
     }
 
@@ -341,7 +487,7 @@ async function main(): Promise<void> {
       if (rest.includes('--json')) {
         process.stdout.write(
           JSON.stringify(
-            { groups, statuses: Object.fromEntries(statuses), source: client ? 'extension' : 'local' },
+            { groups, statuses: Object.fromEntries(statuses), source: client ? client.kind : 'local' },
             null,
             2
           ) + '\n'
@@ -350,7 +496,7 @@ async function main(): Promise<void> {
         process.stdout.write(plainGroupList(groups, statuses) + '\n');
         if (!client) {
           process.stdout.write(
-            `${A.dim}VS Code not running — statuses unknown. "muster up <group>" runs one right here.${A.reset}\n`
+            `${A.dim}No daemon or VS Code running — statuses unknown. "muster up <group>" runs one right here.${A.reset}\n`
           );
         }
       }
@@ -358,7 +504,7 @@ async function main(): Promise<void> {
     }
 
     case 'run': {
-      if (!client) fail(`${NOT_RUNNING} To run a group without VS Code, use "muster up <group>".`);
+      if (!client) fail(`${NOT_RUNNING} Or just run it in the foreground with "muster up <group>".`);
       const groupId = rest[0] ?? fail('Usage: muster run <group> [service]');
       const serviceId = rest[1] && !rest[1].startsWith('-') ? rest[1] : undefined;
       process.stdout.write(
@@ -382,10 +528,20 @@ async function main(): Promise<void> {
       if (!client) fail(NOT_RUNNING);
       const groupId = rest[0] ?? fail('Usage: muster stop <group> [service]');
       const serviceId = rest[1] && !rest[1].startsWith('-') ? rest[1] : undefined;
-      await client.stop(groupId, serviceId);
-      process.stdout.write(
-        `${A.amber}[muster]${A.reset} stopped ${serviceId ? `${groupId}/${serviceId}` : groupId}\n`
-      );
+      // Default keeps the terminal and its scrollback so a crash you were
+      // reading survives the stop; --force closes it and clears history.
+      // Only the VS Code extension has a terminal to keep or close — a
+      // daemon-run group has no terminal, so the flag has nothing to do.
+      const force = rest.includes('--force') || rest.includes('-f');
+      await client.stop(groupId, serviceId, force);
+      const target = serviceId ? `${groupId}/${serviceId}` : groupId;
+      const note =
+        client.kind !== 'daemon'
+          ? force
+            ? ' (terminal closed)'
+            : ' (terminal kept — --force to close)'
+          : '';
+      process.stdout.write(`${A.amber}[muster]${A.reset} stopped ${target}${A.dim}${note}${A.reset}\n`);
       return;
     }
 
@@ -400,7 +556,7 @@ async function main(): Promise<void> {
     }
 
     case 'status': {
-      if (!client) fail(`${NOT_RUNNING} Without VS Code, "muster up <group>" shows live status in its dashboard.`);
+      if (!client) fail(`${NOT_RUNNING} Or "muster up <group>" shows live status in its dashboard.`);
       const groupId = rest[0] ?? fail('Usage: muster status <group>');
       const status = await client.status(groupId);
       process.stdout.write(`${A.bold}${groupId}${A.reset}  ${status.state}\n`);
@@ -409,7 +565,7 @@ async function main(): Promise<void> {
     }
 
     case 'logs': {
-      if (!client) fail(`${NOT_RUNNING} Without VS Code, "muster up <group>" streams logs right here.`);
+      if (!client) fail(`${NOT_RUNNING} Or "muster up <group>" streams logs right here.`);
       // Flags may appear anywhere: strip each (with its value) off the
       // argv copy so positionals stay positional.
       const args = [...rest];
@@ -426,13 +582,18 @@ async function main(): Promise<void> {
       const levelRaw = take('--level', true);
       const level: LogLevel = levelRaw === undefined ? 'all' : parseLevel(levelRaw) ?? fail(`Invalid --level: ${levelRaw} (use error, warn, info, or all)`);
       const follow = [take('-f', false), take('--follow', false)].includes('true');
+      const grep = take('--grep', true);
       const [groupId, serviceId] = args;
-      if (!groupId) fail('Usage: muster logs <group> [service] [-n N] [-f] [--level error|warn|info]');
+      if (!groupId) {
+        fail('Usage: muster logs <group> [service] [-n N] [-f] [--level error|warn|info] [--grep TEXT]');
+      }
+      // Tint by detected severity so errors jump out of a wall of output.
+      const paint = (text: string): string => colorByLevel(text, classifyLine(text));
 
       if (serviceId) {
         // Single service: tail (filtered), then optionally follow.
         let shown = await client.logs(groupId, serviceId, lines);
-        const filtered = filterLog(shown, level);
+        const filtered = filterLog(shown, level, grep ?? '').map(paint);
         process.stdout.write(filtered.join('\n') + (filtered.length ? '\n' : ''));
         if (!follow) return;
 
@@ -441,14 +602,14 @@ async function main(): Promise<void> {
           try {
             const latest = await client.logs(groupId, serviceId, 500);
             if (latest.length > count) {
-              const fresh = filterLog(latest.slice(count - latest.length), level);
+              const fresh = filterLog(latest.slice(count - latest.length), level, grep ?? '').map(paint);
               if (fresh.length) process.stdout.write(fresh.join('\n') + '\n');
             } else if (latest.length < count) {
               count = 0; // service restarted, buffer reset
             }
             count = latest.length;
           } catch {
-            // keep polling; VS Code may be restarting
+            // keep polling; the daemon or extension may be restarting
           }
         }, 1000);
         return;
@@ -465,10 +626,10 @@ async function main(): Promise<void> {
         const tail = await client.logs(groupId, id, lines).catch(() => []);
         appendNewLines(combined, counts, id, tail);
       }
-      const initial = filterLog(
-        combined.map((e) => `${prefix(e.serviceId)} ${e.line}`),
-        level
-      );
+      // Paint the message, not the [service] tag — the tag's own colour is
+      // what makes each service scannable, so it must survive the tint.
+      const tagged = (e: TaggedLine): string => `${prefix(e.serviceId)} ${paint(e.line)}`;
+      const initial = filterLog(combined.map(tagged), level, grep ?? '');
       process.stdout.write(initial.join('\n') + (initial.length ? '\n' : ''));
       if (!follow) return;
 
@@ -478,10 +639,7 @@ async function main(): Promise<void> {
             const latest = await client.logs(groupId, id, 500);
             const before = combined.length;
             appendNewLines(combined, counts, id, latest);
-            const fresh = filterLog(
-              combined.slice(before).map((e) => `${prefix(e.serviceId)} ${e.line}`),
-              level
-            );
+            const fresh = filterLog(combined.slice(before).map(tagged), level, grep ?? '');
             if (fresh.length) process.stdout.write(fresh.join('\n') + '\n');
           } catch {
             // keep polling
@@ -504,7 +662,19 @@ async function main(): Promise<void> {
 
     case 'create': {
       const { positionals, flags } = parseFlags(rest);
-      const groupId = positionals[0] ?? fail('Usage: muster create <group> --command "<cmd>"');
+      let groupId = positionals[0];
+      // A group id and a command are the two things create can't work
+      // without — prompt for whichever is missing instead of just failing,
+      // so the first thing anyone types doesn't have to be exactly right.
+      if ((!groupId || !flags.command) && process.stdout.isTTY && process.stdin.isTTY) {
+        const answers = await promptMissingCreateFields(groupId, flags.command);
+        if (!answers) return;
+        groupId = answers.groupId;
+        flags.command = answers.command;
+      }
+      if (!groupId || !flags.command) {
+        fail('Usage: muster create <group> --command "<cmd>"');
+      }
       const serviceId = flags.service || 'main';
       // Standalone create with no config yet starts a fresh one right here.
       const start = process.env.MUSTER_WORKSPACE ?? process.cwd();

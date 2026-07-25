@@ -24,7 +24,7 @@ import {
   formatStopping,
   formatWaitingReady,
 } from './narratorFormat';
-import { ProcessTracker } from './processTracker';
+import { ProcessTracker, StopOptions } from './processTracker';
 import { buildServiceCommand } from './shell';
 import { wait, waitForServiceReady } from './readiness';
 
@@ -84,7 +84,11 @@ export class GroupRunner {
       }
 
       if (group.layout === 'aggregated') {
-        launchAggregatedGroup(group, this.tracker, this.getWorkspaceFolder());
+        // Hand the shared terminal's disposable to the tracker so restart
+        // and delete can tear it down; previously it was discarded here and
+        // every restart leaked a duplicate "Muster: <label>" terminal.
+        const shared = launchAggregatedGroup(group, this.tracker, this.getWorkspaceFolder());
+        this.tracker.registerGroupTerminal(groupId, shared);
         this.narrator?.writeLine(formatAggregatedHandoff(groupId, group.label));
         return;
       }
@@ -222,7 +226,11 @@ export class GroupRunner {
     }
   }
 
-  async stopService(groupId: string, serviceId: string): Promise<void> {
+  async stopService(
+    groupId: string,
+    serviceId: string,
+    opts: StopOptions = {}
+  ): Promise<void> {
     const config = this.getConfig();
     const group = findGroup(config, groupId);
     if (!group) {
@@ -232,16 +240,22 @@ export class GroupRunner {
       throw new Error(`Unknown service: ${serviceId}`);
     }
     this.narrator?.writeLine(formatStopping(`${groupId}/${serviceId}`));
-    await this.tracker.stopGroup(groupId, [serviceId]);
+    await this.tracker.stopGroup(groupId, [serviceId], opts);
     this.narrator?.writeLine(formatStopped(`${groupId}/${serviceId}`));
   }
 
   async restartService(groupId: string, serviceId: string): Promise<void> {
-    await this.stopService(groupId, serviceId);
+    // Replace the terminal (rather than leaving the stopped one behind next
+    // to the new one) while carrying the scrollback into the new terminal.
+    await this.stopService(groupId, serviceId, { replaceTerminal: true });
     await this.runService(groupId, serviceId);
   }
 
-  async stopGroup(groupId: string, removeFromRunning = true): Promise<void> {
+  async stopGroup(
+    groupId: string,
+    removeFromRunning = true,
+    opts: StopOptions = {}
+  ): Promise<void> {
     const config = this.getConfig();
     const group = findGroup(config, groupId);
     if (!group) {
@@ -250,7 +264,7 @@ export class GroupRunner {
 
     const serviceIds = group.services.map((s) => s.id);
     this.narrator?.writeLine(formatStopping(groupId));
-    await this.tracker.stopGroup(groupId, serviceIds);
+    await this.tracker.stopGroup(groupId, serviceIds, opts);
     this.narrator?.writeLine(formatStopped(groupId));
 
     if (group.hooks?.postStop?.length) {
@@ -274,8 +288,29 @@ export class GroupRunner {
   }
 
   async restartGroup(groupId: string): Promise<void> {
-    await this.stopGroup(groupId);
+    await this.stopGroup(groupId, true, { replaceTerminal: true });
+    // Aggregated layout's one shared terminal is a group resource, not a
+    // per-service one, so the per-service stop above can't tear it down —
+    // dispose it here before runGroup creates a fresh one.
+    this.tracker.disposeGroupTerminal(groupId);
     await this.runGroup(groupId);
+  }
+
+  /**
+   * Stop a group and forget it entirely — kill every process, dispose every
+   * terminal, drop the tracked entries. Used when a group is being deleted
+   * from the config, so its servers don't keep running (and holding ports)
+   * with no group left in the UI to stop them.
+   */
+  async disposeGroup(groupId: string): Promise<void> {
+    const config = this.getConfig();
+    const group = findGroup(config, groupId);
+    const serviceIds = group ? group.services.map((s) => s.id) : [];
+    if (serviceIds.length > 0) {
+      await this.tracker.stopGroup(groupId, serviceIds, { force: true });
+    }
+    this.tracker.clearGroup(groupId, serviceIds);
+    this.runningGroups.delete(groupId);
   }
 
   getGroupStatus(groupId: string) {

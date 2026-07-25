@@ -1,4 +1,4 @@
-import { defaultWorkspaceHint, findDiscovery } from '../ipc/discovery';
+import { IpcServerKind, defaultWorkspaceHint, findDiscovery } from '../ipc/discovery';
 
 export type CliService = { id: string; name: string; command: string; port?: number };
 export type CliGroup = {
@@ -15,10 +15,21 @@ export type CliGroupStatus = {
 };
 
 export const NOT_RUNNING =
-  'Could not reach the Muster extension. Open the workspace in VS Code (or Cursor) with the Muster extension installed, then retry.';
+  'Could not reach a Muster daemon or extension. Start one with "muster daemon start", ' +
+  'or open the workspace in VS Code (or Cursor) with the Muster extension installed, then retry.';
 
 export class IpcClient {
-  private constructor(readonly port: number, readonly workspace: string) {}
+  private constructor(
+    readonly port: number,
+    readonly workspace: string,
+    /**
+     * Which server is on the other end. Only known for real when resolved
+     * via discovery; a connection forced through MUSTER_IPC_PORT (the
+     * extension's own env-var fast path) can't tell, so it assumes
+     * 'extension' — the one thing that env var has always meant.
+     */
+    readonly kind: IpcServerKind = 'extension'
+  ) {}
 
   static connect(): IpcClient {
     const fromEnv = parseInt(process.env.MUSTER_IPC_PORT ?? '', 10);
@@ -29,7 +40,7 @@ export class IpcClient {
     if (!found) {
       throw new Error(NOT_RUNNING);
     }
-    return new IpcClient(found.port, found.workspace);
+    return new IpcClient(found.port, found.workspace, found.kind ?? 'extension');
   }
 
   private async request(path: string, method = 'GET', body?: unknown): Promise<unknown> {
@@ -70,8 +81,12 @@ export class IpcClient {
     return this.request('/run', 'POST', { groupId, ...(serviceId ? { serviceId } : {}) });
   }
 
-  stop(groupId: string, serviceId?: string): Promise<unknown> {
-    return this.request('/stop', 'POST', { groupId, ...(serviceId ? { serviceId } : {}) });
+  stop(groupId: string, serviceId?: string, force = false): Promise<unknown> {
+    return this.request('/stop', 'POST', {
+      groupId,
+      ...(serviceId ? { serviceId } : {}),
+      ...(force ? { force: true } : {}),
+    });
   }
 
   restart(groupId: string, serviceId?: string): Promise<unknown> {

@@ -174,11 +174,35 @@ running they route through it (so the sidebar refreshes live); without it
 they read and write `.vscode/muster.json` directly, validated by the same
 schema.
 
-**Lifecycle commands — a remote control for the VS Code extension.** `run`,
-`stop`, `restart`, `status`, `logs`, and the default TUI dashboard drive the
-extension over localhost, so groups run in visible VS Code terminals with
-the trust model applied. These need VS Code (or Cursor) open with Muster
-active. Get `muster` on your PATH however's easiest:
+**Bare `muster` adapts.** With VS Code running it's a remote control for
+the extension; without it, the same dashboard opens on your local config —
+every group listed idle, `r` to start one, each backed by its own local
+supervisor. No config yet? It walks you through creating your first group
+(name, services, ports — with environment detection as you type) and drops
+you straight into the dashboard.
+
+**Background daemon — groups that outlive the terminal.** `muster daemon
+start` puts a small background process in charge of this workspace, so
+`run`, `stop`, `restart`, `status`, `logs`, and every MCP tool keep working
+after you close the terminal (or VS Code). No editor required.
+
+```bash
+muster daemon start          # background, owns this workspace's groups
+muster daemon status         # running? on what port?
+muster daemon stop           # stops it and everything it's running
+muster up web --detach       # start a group straight onto the daemon
+```
+
+Add `--allow-agent-actions` to let MCP clients (Claude Code, Codex, …)
+start and stop groups without a human confirming each call. It's off by
+default — the headless equivalent of the extension's confirmation prompt.
+
+**Lifecycle commands — a remote control for whatever's running.** `run`,
+`stop`, `restart`, `status`, and `logs` drive whichever server is reachable:
+the daemon above, or the VS Code extension (where groups run in visible
+terminals with the trust model applied). A daemon wins when both are up,
+since it owns processes that outlive any editor window. Get `muster` on
+your PATH however's easiest:
 
 ```bash
 npm install -g muster-cli
@@ -199,9 +223,15 @@ muster              # interactive TUI dashboard
 muster ls           # groups + services + live status (add --json for scripting)
 muster run full-stack
 muster stop full-stack api        # stop just one service
+muster stop full-stack --force    # …and close its terminal (default keeps it)
 muster logs full-stack api -f --level error   # follow one service, errors only
 muster logs full-stack --level warn           # whole group, lines tagged [service]
+muster logs full-stack --grep timeout         # only lines containing "timeout"
 ```
+
+Errors and warnings are tinted as they stream, and colour turns itself off
+automatically when output is piped — `muster ls | grep api` gets clean text,
+not escape codes. `NO_COLOR` and `FORCE_COLOR` are both honoured.
 
 Manage config from the terminal too — no need to open the editor (these
 work with or without VS Code):
@@ -235,14 +265,39 @@ combined view, `/` adds a text filter, and all three compose. The same
 severity classifier backs `muster logs --level` and the MCP
 `get_service_logs` tool, so humans and agents see the same triage.
 
+## Log history
+
+Output is written to `~/.muster/logs/<workspace>/<group>/<service>.log` as
+plain, timestamped, greppable text — so a crash you were reading survives
+stopping the group, restarting it, and the process that produced it exiting.
+Stopping a service **keeps** its terminal and scrollback; restarting keeps
+the history too, with a `— restarted —` divider rather than a blank screen.
+
+Each group decides how long to keep it:
+
+```jsonc
+{ "id": "web", "logRetention": "7d" }   // default; also "48h", "90m", or
+                                        // "none" to keep until you clear it
+```
+
+Files rotate as they grow and old generations are never overwritten — the
+only thing that removes history is the retention window.
+
 ## MCP integration
 
-Muster exposes MCP tools for AI agents to list groups, run/stop services, and read terminal output — including `get_service_logs` with severity (`error`/`warn`/`info`) and substring filters, per service or across a whole group with `[service]` tags, so an agent can pull exactly "the errors from api" instead of dumping every line. Existing JSON config and MCP tools remain fully compatible.
+Muster exposes MCP tools for AI agents to define groups, run/stop services, and read terminal output — including `get_service_logs` with severity (`error`/`warn`/`info`) and substring filters, per service or across a whole group with `[service]` tags, so an agent can pull exactly "the errors from api" instead of dumping every line. `create_server_group` and `add_service_to_group` let an agent set a stack up from a plain-English description; they only write config, so starting anything still goes through the confirmation gate. Existing JSON config and MCP tools remain fully compatible.
 
-Agents inside VS Code and Cursor pick the server up automatically. Terminal agents connect via the launcher (VS Code must be open with Muster activated):
+Agents inside VS Code and Cursor pick the server up automatically. Terminal agents connect via the launcher:
 
 ```bash
 claude mcp add muster -- node <path-to-repo>/bin/muster-mcp.cjs
+```
+
+The tools reach a standalone `muster daemon` or the VS Code extension,
+whichever is running — so an agent can drive your stack with no editor open:
+
+```bash
+muster daemon start --allow-agent-actions
 ```
 
 The repo doubles as a Claude Code plugin — see [FEATURES.md](FEATURES.md#client-setup) for Claude Code, Codex CLI, and Cursor setup, plus troubleshooting.

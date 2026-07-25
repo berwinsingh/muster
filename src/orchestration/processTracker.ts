@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { GroupStatus, ServiceStatus } from '../config/schema';
+import { LogStore } from '../logs/store';
 
 export type TrackedService = {
   groupId: string;
@@ -11,9 +12,38 @@ export type TrackedService = {
   outputBuffer: string[];
   partialLine: string;
   startedAt?: number;
+  /**
+   * Set when the user (or agent) stopped the service on purpose, so the
+   * terminal's exit event reports 'stopped' rather than 'failed' — a
+   * Ctrl-C'd process exits non-zero (130) but that is not a crash.
+   */
+  expectStop?: boolean;
+};
+
+export type StopOptions = {
+  /**
+   * Dispose the terminal and forget the service entirely — clears its
+   * history and reclaims the terminal. Default (false) interrupts the
+   * process but keeps the terminal and its scrollback, so a failed run
+   * stays on screen to read.
+   */
+  force?: boolean;
+  /**
+   * Dispose the terminal but keep the tracked entry (and its output
+   * buffer), so a freshly created terminal inherits the scrollback with a
+   * divider. Used by restart, which replaces the terminal rather than
+   * leaving the old one behind next to the new one.
+   */
+  replaceTerminal?: boolean;
 };
 
 const MAX_OUTPUT_LINES = 500;
+
+/** The scrollback divider a restart drops in, shared with headless mode. */
+export const RESTART_DIVIDER = '— restarted —';
+
+/** ETX — what pressing Ctrl-C sends, to interrupt a terminal's foreground command. */
+const CTRL_C = String.fromCharCode(3);
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\r/g, '');
@@ -21,6 +51,13 @@ function stripAnsi(text: string): string {
 
 export class ProcessTracker implements vscode.Disposable {
   private readonly services = new Map<string, TrackedService>();
+  /**
+   * Group-level resources that outlive any single service — the aggregated
+   * layout's one shared terminal. Kept here so restart and delete can
+   * dispose it; without this the aggregated terminal's disposable was
+   * dropped on the floor and every restart leaked a duplicate terminal.
+   */
+  private readonly groupTerminals = new Map<string, vscode.Disposable>();
   private readonly onDidChangeEmitter = new vscode.EventEmitter<void>();
   readonly onDidChange = this.onDidChangeEmitter.event;
 
@@ -33,6 +70,17 @@ export class ProcessTracker implements vscode.Disposable {
 
   private readonly disposables: vscode.Disposable[] = [];
 
+  /**
+   * Persists captured lines so history survives a stop, a restart, and the
+   * extension host itself exiting. Set by the extension once the workspace
+   * root is known; absent in tests, where logs stay in memory only.
+   */
+  private logStore: LogStore | undefined;
+
+  setLogStore(store: LogStore | undefined): void {
+    this.logStore = store;
+  }
+
   constructor() {
     this.disposables.push(
       vscode.window.onDidStartTerminalShellExecution((event) => {
@@ -44,7 +92,11 @@ export class ProcessTracker implements vscode.Disposable {
           return;
         }
         this.flushPartialLine(tracked);
-        tracked.status = event.exitCode === undefined || event.exitCode === 0 ? 'stopped' : 'failed';
+        // A deliberate stop (Ctrl-C) exits non-zero but is not a crash.
+        tracked.status =
+          tracked.expectStop || event.exitCode === undefined || event.exitCode === 0
+            ? 'stopped'
+            : 'failed';
         this.onDidChangeEmitter.fire();
       })
     );
@@ -111,7 +163,7 @@ export class ProcessTracker implements vscode.Disposable {
       serviceId,
       terminal,
       status,
-      outputBuffer: [],
+      outputBuffer: this.carryOverBuffer(groupId, serviceId),
       partialLine: '',
       startedAt: Date.now(),
     };
@@ -133,7 +185,7 @@ export class ProcessTracker implements vscode.Disposable {
       pseudoterminal: disposable,
       childProcess,
       status,
-      outputBuffer: [],
+      outputBuffer: this.carryOverBuffer(groupId, serviceId),
       partialLine: '',
       startedAt: Date.now(),
     };
@@ -151,11 +203,29 @@ export class ProcessTracker implements vscode.Disposable {
       return;
     }
     tracked.outputBuffer.push(line);
+    this.logStore?.append(tracked.groupId, tracked.serviceId, [line]);
     this.onDidAppendOutputEmitter.fire({
       groupId: tracked.groupId,
       serviceId: tracked.serviceId,
       line,
     });
+  }
+
+  /**
+   * Carry a prior run's scrollback into a fresh terminal/pty for the same
+   * service, with a divider — so a restart reads as one continuous history
+   * instead of wiping the output the user was mid-debug on. Mirrors the
+   * headless supervisor. A force-stop deletes the entry, so this only
+   * preserves history when the user actually restarted.
+   */
+  private carryOverBuffer(groupId: string, serviceId: string): string[] {
+    const prev = this.services.get(this.key(groupId, serviceId));
+    if (!prev || prev.outputBuffer.length === 0) {
+      return [];
+    }
+    const carried = [...prev.outputBuffer, RESTART_DIVIDER];
+    this.logStore?.append(groupId, serviceId, [RESTART_DIVIDER]);
+    return carried;
   }
 
   private flushPartialLine(tracked: TrackedService): void {
@@ -232,33 +302,141 @@ export class ProcessTracker implements vscode.Disposable {
     return tracked.outputBuffer.slice(-lines);
   }
 
-  async stopGroup(groupId: string, serviceIds: string[]): Promise<void> {
+  /**
+   * Logs for display: the live in-memory buffer when the service is tracked
+   * this session, otherwise persisted history from disk — so `muster logs`
+   * still works on a group that was stopped, or that only ran in a previous
+   * session. `since` filters persisted history by timestamp.
+   */
+  readLogs(
+    groupId: string,
+    serviceId: string,
+    opts: { lines?: number; since?: number } = {}
+  ): string[] {
+    const lines = opts.lines ?? 50;
+    const tracked = this.services.get(this.key(groupId, serviceId));
+    // A tracked service with output in memory is the freshest source. Fall
+    // through to disk only when nothing is buffered (never ran this session,
+    // or the buffer was cleared), so we never show a stale disk copy over
+    // live output.
+    if (tracked && tracked.outputBuffer.length > 0) {
+      return tracked.outputBuffer.slice(-lines);
+    }
+    if (this.logStore) {
+      return this.logStore
+        .read(groupId, serviceId, { lines, since: opts.since })
+        .map((entry) => entry.line);
+    }
+    return tracked ? tracked.outputBuffer.slice(-lines) : [];
+  }
+
+  async stopGroup(
+    groupId: string,
+    serviceIds: string[],
+    opts: StopOptions = {}
+  ): Promise<void> {
     for (const serviceId of serviceIds) {
-      await this.stopService(groupId, serviceId);
+      await this.stopService(groupId, serviceId, opts);
     }
   }
 
-  async stopService(groupId: string, serviceId: string): Promise<void> {
+  /**
+   * Stop a service. By default this interrupts the running process but
+   * leaves the terminal — and everything scrolled into it — in place, so a
+   * crash you were reading survives the stop. Pass `{ force: true }` to
+   * dispose the terminal and forget the service (the way to clear history
+   * and reclaim the terminal).
+   */
+  async stopService(
+    groupId: string,
+    serviceId: string,
+    opts: StopOptions = {}
+  ): Promise<void> {
     const tracked = this.services.get(this.key(groupId, serviceId));
     if (!tracked) {
       return;
     }
+    const force = opts.force === true;
+    // Both force and restart tear the terminal down; only force also forgets
+    // the service (and thus its scrollback).
+    const disposeTerminal = force || opts.replaceTerminal === true;
 
     this.flushPartialLine(tracked);
+    tracked.expectStop = true;
+
     if (tracked.childProcess && !tracked.childProcess.killed) {
-      tracked.childProcess.kill('SIGTERM');
+      // Aggregated layout: a real child process. SIGTERM the group; a
+      // force/restart also disposes the shared terminal below.
+      const child = tracked.childProcess;
+      child.kill('SIGTERM');
+      // Escalate to SIGKILL for a process that ignores SIGTERM, so a stop
+      // never hangs forever waiting on a stubborn service.
+      const killTimer = setTimeout(() => {
+        if (!child.killed) {
+          try {
+            child.kill('SIGKILL');
+          } catch {
+            // already gone
+          }
+        }
+      }, 5000);
+      killTimer.unref?.();
+      child.once('exit', () => clearTimeout(killTimer));
+    } else if (tracked.terminal && !disposeTerminal) {
+      // Dedicated/split layout: the process runs *inside* the terminal.
+      // Ctrl-C (ETX) interrupts the foreground command while leaving the
+      // terminal and its scrollback intact — exactly what the user would
+      // press themselves.
+      try {
+        tracked.terminal.sendText(CTRL_C, false);
+      } catch {
+        // terminal already closed by the user
+      }
     }
-    tracked.pseudoterminal?.dispose();
-    tracked.terminal?.dispose();
+
+    if (disposeTerminal) {
+      tracked.pseudoterminal?.dispose();
+      tracked.terminal?.dispose();
+      // Drop the handles so nothing later writes to a dead terminal; the
+      // outputBuffer stays put so a restart can carry it into the new one.
+      tracked.pseudoterminal = undefined;
+      tracked.terminal = undefined;
+    }
+    if (force) {
+      this.services.delete(this.key(groupId, serviceId));
+    }
 
     tracked.status = 'stopped';
     this.onDidChangeEmitter.fire();
+  }
+
+  /**
+   * Hand the tracker ownership of a group-wide terminal (the aggregated
+   * layout's shared one). Any previously registered terminal for the group
+   * is left in place — a plain stop keeps it on screen — so callers that
+   * mean to replace it must dispose first via disposeGroupTerminal.
+   */
+  registerGroupTerminal(groupId: string, disposable: vscode.Disposable): void {
+    this.groupTerminals.set(groupId, disposable);
+  }
+
+  disposeGroupTerminal(groupId: string): void {
+    const disposable = this.groupTerminals.get(groupId);
+    if (disposable) {
+      try {
+        disposable.dispose();
+      } catch {
+        // already disposed
+      }
+      this.groupTerminals.delete(groupId);
+    }
   }
 
   clearGroup(groupId: string, serviceIds: string[]): void {
     for (const serviceId of serviceIds) {
       this.services.delete(this.key(groupId, serviceId));
     }
+    this.disposeGroupTerminal(groupId);
     this.onDidChangeEmitter.fire();
   }
 
@@ -273,6 +451,10 @@ export class ProcessTracker implements vscode.Disposable {
     for (const disposable of this.disposables) {
       disposable.dispose();
     }
+    for (const groupId of [...this.groupTerminals.keys()]) {
+      this.disposeGroupTerminal(groupId);
+    }
+    this.logStore?.dispose();
     this.onDidChangeEmitter.dispose();
     this.onDidAppendOutputEmitter.dispose();
   }

@@ -115,6 +115,12 @@
           "default": "parallel"
         },
         "keepExistingTerminals": { "type": "boolean" },
+        "logRetention": {
+          "type": "string",
+          "description": "How long to keep this group's log history on disk: a duration like \"7d\", \"48h\", \"90m\", or \"none\" to keep until manually cleared. Defaults to 7d.",
+          "pattern": "^(none|off|forever|never|[0-9]+\\s*(ms|s|m|h|d|w))$",
+          "default": "7d"
+        },
         "hooks": {
           "type": "object",
           "additionalProperties": false,

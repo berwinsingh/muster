@@ -76,8 +76,8 @@ extension).
 
 | Command | What it does |
 |---------|--------------|
-| `muster up [group]` | **Standalone** — run a group right in the terminal, no VS Code required: same ordering/ready/hooks semantics, and the **same interactive dashboard** as remote `muster` (hotkeys, mouse, palette, per-service logs) fed by the local supervisor. `q`/Ctrl+C stops the whole process tree. `--plain` (automatic when piped) streams flat prefixed logs instead |
-| `muster` | Interactive dashboard (TUI) |
+| `muster` | The dashboard, everywhere: drives the VS Code extension when it's running, otherwise opens on the local config — all groups listed idle, `r` starts one under a local supervisor. With no config at all, an interactive wizard creates the first group (services, ports, environment detection) and drops into the dashboard |
+| `muster up [group]` | **Standalone** — run one group immediately, no VS Code required: same ordering/ready/hooks semantics, and the **same interactive dashboard** as remote `muster` (hotkeys, mouse, palette, per-service logs) fed by the local supervisor. `q`/Ctrl+C stops the whole process tree. `--plain` (automatic when piped) streams flat prefixed logs instead |
 | `muster ls [--json]` | Groups, services, ports, and live status |
 | `muster run <group> [service]` | Start a group (or one service), wait for readiness, report `N/N running` |
 | `muster stop <group> [service]` | Stop a group or a single service |

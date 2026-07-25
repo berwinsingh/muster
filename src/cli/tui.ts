@@ -35,7 +35,13 @@ export interface DashboardSource {
   status(groupId: string): Promise<CliGroupStatus>;
   logs(groupId: string, serviceId: string, lines?: number): Promise<string[]>;
   run(groupId: string, serviceId?: string): Promise<unknown>;
-  stop(groupId: string, serviceId?: string): Promise<unknown>;
+  /**
+   * `force` only has visible effect against the VS Code extension, where it
+   * disposes the terminal instead of leaving it (and its scrollback) in
+   * place. Headless sources accept and ignore it — a headless stop already
+   * fully tears the process down, there is no terminal to keep or dispose.
+   */
+  stop(groupId: string, serviceId?: string, force?: boolean): Promise<unknown>;
   restart(groupId: string, serviceId?: string): Promise<unknown>;
 }
 
