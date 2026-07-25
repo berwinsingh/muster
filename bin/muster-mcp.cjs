@@ -47,12 +47,19 @@ function resolveServer() {
   }
 
   const home = os.homedir();
+  // The `*-server` directories are where extensions land when the editor's
+  // UI runs on the host and the workspace lives elsewhere — WSL, Remote-SSH,
+  // devcontainers, Codespaces.
   const extensionRoots = [
-    path.join(home, '.vscode', 'extensions'),
-    path.join(home, '.vscode-insiders', 'extensions'),
-    path.join(home, '.cursor', 'extensions'),
-    path.join(home, '.windsurf', 'extensions'),
-  ];
+    '.vscode',
+    '.vscode-server',
+    '.vscode-insiders',
+    '.vscode-server-insiders',
+    '.cursor',
+    '.cursor-server',
+    '.windsurf',
+    '.windsurf-server',
+  ].map((dir) => path.join(home, dir, 'extensions'));
   for (const root of extensionRoots) {
     const found = findInExtensionsDir(root);
     if (found) return found;
