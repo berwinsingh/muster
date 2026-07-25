@@ -161,9 +161,16 @@ Detailed reference for MCP tools exposed to agents.
 | `get_group_status` | Read-only | None | Get per-service status (`idle`, `starting`, `running`, `failed`, `stopped`) and group state |
 | `describe_config` | Read-only | None | Return config file paths, schema location, and IPC port |
 | `get_service_logs` | Read-only | None | Recent output for one service — or every service in a group tagged `[service]` — filtered by `level` (`error`/`warn`/`info`) and/or `contains` substring; reports `totalLines` vs `matchedLines` |
-| `run_server_group` | Write | **User confirmation required** | Start all services in a group |
-| `stop_server_group` | Write | **User confirmation required** | Stop all services in a group |
-| `restart_server_group` | Write | **User confirmation required** | Restart all services in a group |
+| `create_server_group` | Config write | None | Define a new group with its first service. Writes `muster.json`; starts nothing |
+| `add_service_to_group` | Config write | None | Add another service to an existing group. Writes `muster.json`; starts nothing |
+| `run_server_group` | Write | **Confirmation required*** | Start all services in a group |
+| `stop_server_group` | Write | **Confirmation required*** | Stop all services in a group |
+| `restart_server_group` | Write | **Confirmation required*** | Restart all services in a group |
+
+\* In VS Code/Cursor, a modal waits for your OK unless `muster.confirmAgentActions`
+is off. Against a standalone daemon, agent-sourced writes are refused outright
+unless it was started with `muster daemon start --allow-agent-actions` — there's
+no window to pop a modal in, so the daemon defaults to declining instead of asking.
 
 ### MCP resources (read-only)
 
@@ -189,11 +196,14 @@ Install or reference `skills/muster/SKILL.md` so agents:
 
 ### Client setup
 
-**Prerequisite for every client below:** VS Code (or Cursor) must be open
-with the Muster extension activated — tool calls proxy through the running
-extension via a localhost IPC endpoint written to `~/.config/muster/ipc/`
-on startup, so trust checks and run confirmations still apply. Stale
-endpoints from crashed sessions are detected and cleaned automatically.
+**Prerequisite for every client below:** something has to be listening —
+either a standalone `muster daemon` (`muster daemon start
+--allow-agent-actions`, no editor needed) or a running VS Code/Cursor
+window with the Muster extension activated. Tool calls proxy through
+whichever one answers via a localhost IPC endpoint written to
+`~/.config/muster/ipc/` on startup, so trust checks and run confirmations
+still apply. Stale endpoints from crashed sessions are detected and
+cleaned automatically.
 
 Two ways to register `muster-mcp` as the server command, in order of
 least setup:
@@ -226,7 +236,7 @@ claude mcp add muster -- node /path/to/muster/bin/muster-mcp.cjs # from a repo c
 ```
 
 Verify with `/mcp` in a Claude Code session — the `muster` server should
-list six tools.
+list nine tools.
 
 #### Codex CLI
 

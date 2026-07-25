@@ -510,6 +510,12 @@
     background: rgba(78, 203, 113, 0.1); color: var(--green);
     border: 1px solid rgba(78, 203, 113, 0.3);
   }
+  .rec-badge {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em;
+    padding: 3px 10px; border-radius: 999px;
+    background: rgba(255, 180, 84, 0.1); color: var(--amber);
+    border: 1px solid rgba(255, 180, 84, 0.3);
+  }
   .install-card > p { color: var(--muted); font-size: 14.5px; margin-bottom: 18px; }
   .install-card .cmd-block { margin-bottom: 12px; }
   .install-card .cmd-block:last-child { margin-bottom: 0; }
@@ -531,6 +537,43 @@
     color: var(--text);
   }
   @media (max-width: 900px) { .install-cols { grid-template-columns: 1fr; } }
+
+  /* ---------- connect-agent ---------- */
+  .connect-head { margin-top: 56px; margin-bottom: 4px; }
+  .connect-head h3 { font-size: 22px; font-weight: 600; }
+  .connect-head p { color: var(--muted); font-size: 14.5px; margin-top: 6px; max-width: 640px; }
+  .connect-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    margin-top: 26px; align-items: start;
+  }
+  .connect-card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 26px 28px;
+    min-width: 0;
+  }
+  .connect-card.primary { border-color: rgba(255, 180, 84, 0.3); }
+  .connect-card .install-card-head { margin-bottom: 10px; }
+  .connect-card h4 { font-size: 16.5px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
+  .connect-card .client-icon { font-size: 16px; }
+  .connect-card > p { color: var(--muted); font-size: 13.5px; margin-bottom: 14px; line-height: 1.55; }
+  .connect-card .cmd-block { margin-bottom: 10px; font-size: 12.5px; padding-right: 68px; }
+  .connect-card .cmd-block:last-of-type { margin-bottom: 0; }
+  .connect-card .alt-label {
+    font-family: var(--mono); font-size: 11px; color: var(--faint);
+    margin: 14px 0 8px; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .connect-foot {
+    margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft);
+    font-size: 13px; color: var(--faint);
+  }
+  .connect-foot code {
+    font-family: var(--mono); font-size: 12px;
+    background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 5px;
+    color: var(--muted);
+  }
+  @media (max-width: 900px) { .connect-grid { grid-template-columns: 1fr; } }
 
   /* footer */
   footer {
@@ -969,9 +1012,68 @@
       <p style="margin:14px 0 0; font-size:13.5px; color:var(--faint)">Don't want to wait? The extension already offers to install the CLI itself the first time it sees a config — one click, no npm required.</p>
     </div>
 
-    <div class="agents-note reveal">
-      <span class="a-icon">🤖</span>
-      <span><strong>Using an AI agent?</strong> Agents inside VS Code and Cursor get Muster's MCP tools automatically once the extension is installed — see <a href="#agents" style="color:var(--amber)">Agents</a> above. Terminal agents work too: <code>claude mcp add muster -- muster-mcp</code> (after the npm install above) or <code>node bin/muster-mcp.cjs</code> from a checkout — or install the repo as a Claude Code plugin, which ships the skill and MCP server preconfigured.</span>
+    <div class="connect-head reveal">
+      <h3>Connect your agent</h3>
+      <p>Inside VS Code or Cursor with the extension installed, this is already wired up — see <a href="#agents" style="color:var(--amber)">Agents</a> above. From a terminal, or with no editor open at all, register <code style="font-family:var(--mono);font-size:0.9em;background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:5px">muster-mcp</code> with your client directly:</p>
+    </div>
+
+    <div class="connect-grid reveal">
+      <div class="connect-card primary">
+        <div class="install-card-head">
+          <h4><span class="client-icon">◆</span> Claude Code</h4>
+          <span class="rec-badge">EASIEST</span>
+        </div>
+        <p>Install the repo as a plugin — registers the MCP server <em>and</em> the agent skill (the read → run → poll → stop workflow) in one step:</p>
+        <div class="cmd-block">/plugin marketplace add berwinsingh/muster
+/plugin install muster@muster<button class="copy-btn" data-copy="/plugin marketplace add berwinsingh/muster
+/plugin install muster@muster">copy</button></div>
+        <p class="alt-label">Or register the server directly</p>
+        <div class="cmd-block"><span class="dollar">$</span> claude mcp add muster -- muster-mcp<button class="copy-btn" data-copy="claude mcp add muster -- muster-mcp">copy</button></div>
+        <p style="margin:10px 0 0; font-size:12.5px; color:var(--faint)">Verify with <code style="font-family:var(--mono)">/mcp</code> in a session — nine <code style="font-family:var(--mono)">muster</code> tools should list.</p>
+      </div>
+
+      <div class="connect-card">
+        <div class="install-card-head">
+          <h4><span class="client-icon">▲</span> Codex CLI</h4>
+        </div>
+        <p>One command registers it:</p>
+        <div class="cmd-block"><span class="dollar">$</span> codex mcp add muster -- muster-mcp<button class="copy-btn" data-copy="codex mcp add muster -- muster-mcp">copy</button></div>
+        <p class="alt-label">Or add to ~/.codex/config.toml</p>
+        <div class="cmd-block">[mcp_servers.muster]
+command = "muster-mcp"<button class="copy-btn" data-copy='[mcp_servers.muster]
+command = "muster-mcp"'>copy</button></div>
+      </div>
+
+      <div class="connect-card">
+        <div class="install-card-head">
+          <h4><span class="client-icon">■</span> Cursor</h4>
+        </div>
+        <p>Cursor doesn't read VS Code's MCP provider, so add it to <code style="font-family:var(--mono);font-size:0.9em;background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:5px">.cursor/mcp.json</code> (project) or <code style="font-family:var(--mono);font-size:0.9em;background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:5px">~/.cursor/mcp.json</code> (global):</p>
+        <div class="cmd-block">{
+  "mcpServers": {
+    "muster": { "command": "muster-mcp" }
+  }
+}<button class="copy-btn" data-copy='{
+  "mcpServers": {
+    "muster": { "command": "muster-mcp" }
+  }
+}'>copy</button></div>
+        <p style="margin:10px 0 0; font-size:12.5px; color:var(--faint)">Then enable it under Settings → MCP.</p>
+      </div>
+
+      <div class="connect-card">
+        <div class="install-card-head">
+          <h4><span class="client-icon">✦</span> Any other MCP client</h4>
+        </div>
+        <p>Point it at the launcher — it finds the compiled server on its own, whether from an <code style="font-family:var(--mono);font-size:0.9em;background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:5px">npm install -g</code> or a checkout:</p>
+        <div class="cmd-block">command: muster-mcp<button class="copy-btn" data-copy="muster-mcp">copy</button></div>
+        <p class="alt-label">From a repo checkout</p>
+        <div class="cmd-block"><span class="dollar">$</span> node bin/muster-mcp.cjs<button class="copy-btn" data-copy="node bin/muster-mcp.cjs">copy</button></div>
+      </div>
+    </div>
+
+    <div class="connect-foot reveal">
+      No editor required — the launcher reaches a standalone <code>muster daemon</code> or a running VS Code/Cursor extension, whichever answers. Headless, start the daemon with <code>muster daemon start --allow-agent-actions</code> first so run/stop/restart don't wait on a confirmation prompt nobody's there to click.
     </div>
   </div>
 </section>
