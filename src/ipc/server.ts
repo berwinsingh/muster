@@ -104,10 +104,15 @@ export function startIpcServer(
         const groupId = decodeURIComponent(parts[0] ?? '');
         const serviceId = decodeURIComponent(parts[1] ?? '');
         const lines = parseInt(url.searchParams.get('lines') ?? '50', 10);
+        const sinceRaw = url.searchParams.get('since');
+        const since = sinceRaw ? parseInt(sinceRaw, 10) : undefined;
         jsonResponse(res, 200, {
           groupId,
           serviceId,
-          lines: tracker.getRecentOutput(groupId, serviceId, lines),
+          lines: tracker.readLogs(groupId, serviceId, {
+            lines,
+            since: Number.isFinite(since) ? since : undefined,
+          }),
         });
         return;
       }
@@ -116,11 +121,16 @@ export function startIpcServer(
         const bodyRaw = await readBody(req);
         const body = bodyRaw ? (JSON.parse(bodyRaw) as Record<string, string>) : {};
 
+        // A truthy `force` in the body disposes the terminal on stop instead
+        // of keeping it (and its scrollback) around.
+        const force = body.force === 'true' || (body.force as unknown) === true;
         const lifecycle: Record<string, (groupId: string, serviceId?: string) => Promise<void>> = {
           '/run': (groupId, serviceId) =>
             serviceId ? runner.runService(groupId, serviceId) : runner.runGroup(groupId),
           '/stop': (groupId, serviceId) =>
-            serviceId ? runner.stopService(groupId, serviceId) : runner.stopGroup(groupId),
+            serviceId
+              ? runner.stopService(groupId, serviceId, { force })
+              : runner.stopGroup(groupId, true, { force }),
           '/restart': (groupId, serviceId) =>
             serviceId ? runner.restartService(groupId, serviceId) : runner.restartGroup(groupId),
         };

@@ -2,8 +2,9 @@ import { LogLevel, filterLog, stripAnsi } from '../cli/logFilter';
 import { defaultWorkspaceHint, findDiscovery } from '../ipc/discovery';
 
 const NOT_RUNNING_MESSAGE =
-  'Muster extension IPC not available. Is VS Code (or Cursor) open with the Muster extension activated? ' +
-  'Terminal MCP clients need a running Muster extension to connect to.';
+  'No Muster daemon or extension is reachable for this workspace. Start one with ' +
+  '"muster daemon start --allow-agent-actions" (no editor needed), or open the workspace ' +
+  'in VS Code (or Cursor) with the Muster extension activated.';
 
 function resolveIpcPort(): number {
   // Spawned by the extension itself (vscode.lm MCP provider): env var is set.
@@ -11,8 +12,10 @@ function resolveIpcPort(): number {
   if (Number.isInteger(fromEnv) && fromEnv > 0) {
     return fromEnv;
   }
-  // External client (Claude Code, Codex, …): find a live extension host via
-  // the discovery file it writes on startup.
+  // External client (Claude Code, Codex, …): find a live server via the
+  // discovery file it writes on startup — a standalone daemon when one is
+  // running for this workspace, else the extension. Same wire protocol
+  // either way, so nothing below this line needs to know which it got.
   const discovered = findDiscovery(defaultWorkspaceHint());
   if (discovered) {
     return discovered.port;
@@ -20,7 +23,7 @@ function resolveIpcPort(): number {
   throw new Error(NOT_RUNNING_MESSAGE);
 }
 
-async function ipcFetch(path: string, method = 'GET', body?: Record<string, string>): Promise<unknown> {
+async function ipcFetch(path: string, method = 'GET', body?: Record<string, unknown>): Promise<unknown> {
   const port = resolveIpcPort();
   const url = `http://127.0.0.1:${port}${path}`;
   let res: Response;
@@ -65,6 +68,36 @@ export async function restartServerGroup(groupId: string): Promise<unknown> {
 
 export async function describeConfig(): Promise<unknown> {
   return ipcFetch('/describe');
+}
+
+export type NewServiceInput = {
+  id: string;
+  name?: string;
+  command: string;
+  cwd?: string;
+  port?: number;
+};
+
+export type CreateGroupInput = {
+  id: string;
+  label?: string;
+  layout?: 'dedicated' | 'aggregated' | 'split';
+  order?: 'parallel' | 'sequence';
+  service: NewServiceInput;
+};
+
+// Not agent-gated: like `/config/*` for the CLI, defining a group writes
+// to muster.json but starts nothing — the thing that actually needs a
+// human's say-so is run_server_group, gated separately.
+export async function createServerGroup(input: CreateGroupInput): Promise<unknown> {
+  return ipcFetch('/config/create-group', 'POST', input);
+}
+
+export async function addServiceToGroup(
+  groupId: string,
+  service: NewServiceInput
+): Promise<unknown> {
+  return ipcFetch('/config/add-service', 'POST', { groupId, service });
 }
 
 export async function getServiceLogs(

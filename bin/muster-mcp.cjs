@@ -8,9 +8,12 @@
  *   2. dist/mcp/server.js next to this script (repo checkout, after a build)
  *   3. The newest installed Muster VS Code/Cursor extension
  *
- * The server talks to the running Muster extension in VS Code/Cursor via its
- * localhost IPC endpoint (found through ~/.config/muster/ipc), so VS Code
- * with the Muster extension must be open for tool calls to succeed.
+ * The server talks over a localhost IPC endpoint (found through
+ * ~/.config/muster/ipc) to whichever is running for the workspace: a
+ * standalone `muster daemon` (no editor needed — start one with
+ * `muster daemon start --allow-agent-actions`) or the VS Code/Cursor
+ * extension. Either way, one of the two must be running for tool calls to
+ * succeed.
  */
 const fs = require('fs');
 const os = require('os');

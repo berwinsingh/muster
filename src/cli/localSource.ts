@@ -7,6 +7,8 @@
  */
 import type { CliGroup, CliGroupStatus } from './client';
 import { GroupConfig, effectiveCommand } from '../config/schema';
+import { LogStore } from '../logs/store';
+import { openGroupLogStore } from '../logs/forGroup';
 import { Supervisor } from './supervisor';
 import type { DashboardSource } from './tui';
 
@@ -56,7 +58,8 @@ export class LocalSource implements DashboardSource {
     }
   }
 
-  async stop(_groupId: string, serviceId?: string): Promise<void> {
+  // `force` has no headless-specific behavior — see DashboardSource.stop.
+  async stop(_groupId: string, serviceId?: string, _force?: boolean): Promise<void> {
     if (serviceId) {
       await this.supervisor.stopService(serviceId);
     } else {
@@ -81,14 +84,27 @@ export class LocalSource implements DashboardSource {
  */
 export class MultiLocalSource implements DashboardSource {
   private readonly supervisors = new Map<string, Supervisor>();
+  private readonly logStores = new Map<string, LogStore>();
   /** The supervisor that spoke last — its narrator feeds the status line. */
   private active: Supervisor | null = null;
 
   constructor(
     readonly root: string,
-    private readonly allGroups: GroupConfig[],
-    private readonly detect = true
+    /**
+     * A fixed snapshot (the bare `muster` dashboard reads config once, same
+     * as before) or a loader called on every lookup — the daemon passes one
+     * that re-reads .vscode/muster.json, so a group created after the
+     * daemon started is still runnable without a restart.
+     */
+    private readonly groupsSource: GroupConfig[] | (() => GroupConfig[]),
+    private readonly detect = true,
+    /** Persist logs to disk per group; omitted, logs live only in memory. */
+    private readonly persistLogs = false
   ) {}
+
+  private get allGroups(): GroupConfig[] {
+    return typeof this.groupsSource === 'function' ? this.groupsSource() : this.groupsSource;
+  }
 
   get workspace(): string {
     return this.root;
@@ -103,14 +119,20 @@ export class MultiLocalSource implements DashboardSource {
   private supervisorFor(groupId: string): Supervisor {
     const existing = this.supervisors.get(groupId);
     if (existing) return existing;
+    const group = this.groupConfig(groupId);
+    let logStore: LogStore | undefined;
     const supervisor: Supervisor = new Supervisor(
-      this.groupConfig(groupId),
+      group,
       this.root,
       () => {
         this.active = supervisor;
       },
-      this.detect
+      this.detect,
+      this.persistLogs
+        ? (logStore = openGroupLogStore(this.root, group, (w) => supervisor.note(`⚠ ${w}`)).store)
+        : undefined
     );
+    if (logStore) this.logStores.set(groupId, logStore);
     this.supervisors.set(groupId, supervisor);
     return supervisor;
   }
@@ -158,7 +180,8 @@ export class MultiLocalSource implements DashboardSource {
     }
   }
 
-  async stop(groupId: string, serviceId?: string): Promise<void> {
+  // `force` has no headless-specific behavior — see DashboardSource.stop.
+  async stop(groupId: string, serviceId?: string, _force?: boolean): Promise<void> {
     const supervisor = this.supervisors.get(groupId);
     if (!supervisor) return; // never started — nothing to stop
     if (serviceId) {
@@ -187,8 +210,30 @@ export class MultiLocalSource implements DashboardSource {
     return this.active?.lastActivity ?? '';
   }
 
+  /** True while the group has a supervisor with anything still alive. */
+  isRunning(groupId: string): boolean {
+    return this.supervisors.get(groupId)?.alive ?? false;
+  }
+
+  /**
+   * Stop a group and forget its supervisor entirely — mirrors
+   * GroupRunner.disposeGroup, for the same reason: deleting a group from
+   * config must not leave its processes running with nothing left to stop
+   * them. Persisted logs are left alone; retention handles their cleanup.
+   */
+  async disposeGroup(groupId: string): Promise<void> {
+    const supervisor = this.supervisors.get(groupId);
+    if (supervisor) {
+      await supervisor.down();
+      this.supervisors.delete(groupId);
+    }
+    this.logStores.get(groupId)?.dispose();
+    this.logStores.delete(groupId);
+  }
+
   /** Tear down every supervisor this session started. */
   async downAll(): Promise<void> {
     await Promise.all([...this.supervisors.values()].map((s) => s.down()));
+    for (const store of this.logStores.values()) store.dispose();
   }
 }

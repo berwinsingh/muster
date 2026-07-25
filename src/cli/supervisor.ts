@@ -14,6 +14,7 @@ import { GroupConfig, ServiceConfig, effectiveCommand } from '../config/schema';
 import { buildServiceEnv } from '../config/env';
 import { buildPrependCommands, suggestPrependForService } from '../config/runtimeDetect';
 import { runHooks } from '../orchestration/hooks';
+import { LogStore } from '../logs/store';
 import {
   LineBuffer,
   ServiceState,
@@ -71,7 +72,9 @@ export class Supervisor {
     readonly root: string,
     private readonly echo?: (line: string) => void,
     /** Auto-detect venvs / node pins in each service's cwd (off via --no-detect). */
-    private readonly detect = true
+    private readonly detect = true,
+    /** Persists log history to disk; omitted, logs live only in memory. */
+    private readonly logStore?: LogStore
   ) {}
 
   private prefix(serviceId: string): string {
@@ -147,7 +150,10 @@ export class Supervisor {
     // A restarted service keeps its previous log history, with a divider.
     const previous = this.running.get(service.id);
     const buf = previous?.buf ?? newLineBuffer();
-    if (previous) appendChunk(buf, `${A.dim}— restarted —${A.reset}\n`);
+    if (previous) {
+      appendChunk(buf, `${A.dim}— restarted —${A.reset}\n`);
+      this.logStore?.append(this.group.id, service.id, ['— restarted —']);
+    }
 
     const entry: Running = {
       service,
@@ -158,7 +164,11 @@ export class Supervisor {
       exited: false,
     };
     const onData = (chunk: Buffer): void => {
-      for (const line of appendChunk(buf, chunk.toString('utf-8'))) {
+      const completed = appendChunk(buf, chunk.toString('utf-8'));
+      if (completed.length) {
+        this.logStore?.append(this.group.id, service.id, completed);
+      }
+      for (const line of completed) {
         this.echo?.(`${this.prefix(service.id)} ${line}`);
       }
     };
@@ -318,7 +328,13 @@ export class Supervisor {
   logsOf(serviceId: string, count = 500): string[] {
     if (serviceId === '@muster') return tailLines(this.narratorBuf, count);
     const entry = this.running.get(serviceId);
-    return entry ? tailLines(entry.buf, count) : [];
+    if (entry) return tailLines(entry.buf, count);
+    // Not spawned this session — fall back to persisted history so a
+    // service that only ran in a previous run is still viewable.
+    if (this.logStore) {
+      return this.logStore.read(this.group.id, serviceId, { lines: count }).map((e) => e.line);
+    }
+    return [];
   }
 
   /** The latest narrator line — the dashboard's activity status line. */

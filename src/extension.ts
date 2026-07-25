@@ -6,6 +6,7 @@ import { deleteGroup, deleteService } from './config/mutate';
 import { readWritableWorkspaceConfig, saveWorkspaceConfig } from './config/writer';
 import { installCli, maybePromptCliInstall } from './installCli';
 import { startIpcServer } from './ipc/server';
+import { LogStore } from './logs/store';
 import { EventTracker } from './monitoring/eventTracker';
 import { registerMcpProvider } from './mcpProvider';
 import { GroupRunner } from './orchestration/groupRunner';
@@ -129,6 +130,10 @@ async function deleteGroupFromConfig(groupId?: string): Promise<void> {
   );
   if (choice !== 'Delete') return;
   try {
+    // Kill the group's processes and dispose its terminals *before* the
+    // config entry vanishes — otherwise the servers keep running (and
+    // holding their ports) with no group left in the UI to stop them.
+    await runner?.disposeGroup(groupId);
     const config = await readWritableWorkspaceConfig(folder);
     await saveWorkspaceConfig(folder, deleteGroup(config, groupId));
     onConfigChanged();
@@ -148,6 +153,9 @@ async function deleteServiceFromConfig(groupId?: string, serviceId?: string): Pr
   );
   if (choice !== 'Remove') return;
   try {
+    // Stop and forget the one service before it leaves the config, so it
+    // isn't left running with nothing tracking it.
+    await runner?.stopService(groupId, serviceId, { force: true });
     const config = await readWritableWorkspaceConfig(folder);
     await saveWorkspaceConfig(folder, deleteService(config, groupId, serviceId));
     onConfigChanged();
@@ -188,6 +196,12 @@ export function activate(context: vscode.ExtensionContext): void {
     tracker = new ProcessTracker();
     const narrator = new MusterNarrator();
     runner = new GroupRunner(tracker, narrator);
+    // Persist captured output to ~/.muster/logs so history survives stop,
+    // restart, and the extension host exiting.
+    const workspaceRoot = getMusterWorkspaceFolder()?.uri.fsPath;
+    if (workspaceRoot) {
+      tracker.setLogStore(new LogStore({ workspaceRoot }));
+    }
     context.subscriptions.push(tracker, narrator);
     musterLog('step ok: ProcessTracker/GroupRunner');
   } catch (err) {

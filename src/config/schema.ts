@@ -86,6 +86,12 @@ export const GroupSchema = z
     layout: z.enum(['dedicated', 'aggregated', 'split']).default('dedicated'),
     order: z.enum(['parallel', 'sequence']).default('parallel'),
     keepExistingTerminals: z.boolean().optional(),
+    /**
+     * How long to keep this group's log history on disk: a duration like
+     * "7d", "48h", "90m", or "none" to keep it until manually cleared.
+     * Defaults to 7d when unset.
+     */
+    logRetention: z.string().optional(),
     hooks: HooksSchema,
     services: z.array(ServiceSchema).min(1),
   })

@@ -10,6 +10,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import {
+  addServiceToGroup,
+  createServerGroup,
   describeConfig,
   getFilteredServiceLogs,
   getGroupStatus,
@@ -52,8 +54,77 @@ server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       annotations: { readOnlyHint: true },
     },
     {
+      name: 'create_server_group',
+      description:
+        'Define a new server group with its first service (e.g. "set up a group to run the dev server"). ' +
+        'Writes to the workspace\'s muster.json — does not start anything, so it needs no confirmation. ' +
+        'Follow up with run_server_group to actually start it, or add_service_to_group to add more ' +
+        'services to the same group (a frontend + backend running together, say).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'Group id — short, url-safe (e.g. "web", "backend")',
+          },
+          label: { type: 'string', description: 'Human-readable name; defaults to the id' },
+          layout: {
+            type: 'string',
+            enum: ['dedicated', 'aggregated', 'split'],
+            description:
+              'How services present: "dedicated" (default, one terminal each), "aggregated" ' +
+              '(one shared terminal, prefixed output), "split" (one terminal split into panes)',
+          },
+          order: {
+            type: 'string',
+            enum: ['parallel', 'sequence'],
+            description: 'Start services at once ("parallel", default) or one after another ("sequence")',
+          },
+          service: {
+            type: 'object',
+            description: 'The group\'s first (and, right after creation, only) service',
+            properties: {
+              id: { type: 'string', description: 'Service id, unique within the group (e.g. "api")' },
+              name: { type: 'string', description: 'Human-readable name; defaults to the id' },
+              command: { type: 'string', description: 'Shell command that starts the service, e.g. "npm run dev"' },
+              cwd: { type: 'string', description: 'Working directory, relative to the workspace root' },
+              port: { type: 'number', description: 'Port the service listens on, if any' },
+            },
+            required: ['id', 'command'],
+            additionalProperties: false,
+          },
+        },
+        required: ['id', 'service'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'add_service_to_group',
+      description: 'Add another service to an existing group (e.g. adding a worker or frontend alongside an existing api). Writes to muster.json; starts nothing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          groupId: { type: 'string', description: 'Existing group id to add the service to' },
+          service: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Service id, unique within the group' },
+              name: { type: 'string', description: 'Human-readable name; defaults to the id' },
+              command: { type: 'string', description: 'Shell command that starts the service' },
+              cwd: { type: 'string', description: 'Working directory, relative to the workspace root' },
+              port: { type: 'number', description: 'Port the service listens on, if any' },
+            },
+            required: ['id', 'command'],
+            additionalProperties: false,
+          },
+        },
+        required: ['groupId', 'service'],
+        additionalProperties: false,
+      },
+    },
+    {
       name: 'run_server_group',
-      description: 'Start all services in a server group (requires user confirmation in VS Code)',
+      description: 'Start all services in a server group (requires user confirmation unless the daemon/extension has agent actions enabled)',
       inputSchema: {
         type: 'object',
         properties: { groupId: { type: 'string', description: 'Server group id' } },
@@ -63,7 +134,7 @@ server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'stop_server_group',
-      description: 'Stop all services in a server group (requires user confirmation in VS Code)',
+      description: 'Stop all services in a server group (requires user confirmation unless the daemon/extension has agent actions enabled)',
       inputSchema: {
         type: 'object',
         properties: { groupId: { type: 'string', description: 'Server group id' } },
@@ -73,7 +144,7 @@ server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'restart_server_group',
-      description: 'Restart all services in a server group (requires user confirmation in VS Code)',
+      description: 'Restart all services in a server group (requires user confirmation unless the daemon/extension has agent actions enabled)',
       inputSchema: {
         type: 'object',
         properties: { groupId: { type: 'string', description: 'Server group id' } },
@@ -123,6 +194,27 @@ server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 const GroupIdSchema = z.object({ groupId: z.string().min(1) });
 
+const NewServiceSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).optional(),
+  command: z.string().min(1),
+  cwd: z.string().min(1).optional(),
+  port: z.number().int().min(1).max(65535).optional(),
+});
+
+const CreateGroupSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1).optional(),
+  layout: z.enum(['dedicated', 'aggregated', 'split']).optional(),
+  order: z.enum(['parallel', 'sequence']).optional(),
+  service: NewServiceSchema,
+});
+
+const AddServiceSchema = z.object({
+  groupId: z.string().min(1),
+  service: NewServiceSchema,
+});
+
 const LogsSchema = z.object({
   groupId: z.string().min(1),
   serviceId: z.string().min(1).optional(),
@@ -143,6 +235,16 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'get_group_status': {
         const { groupId } = GroupIdSchema.parse(args);
         const result = await getGroupStatus(groupId);
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      }
+      case 'create_server_group': {
+        const input = CreateGroupSchema.parse(args);
+        const result = await createServerGroup(input);
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      }
+      case 'add_service_to_group': {
+        const { groupId, service } = AddServiceSchema.parse(args);
+        const result = await addServiceToGroup(groupId, service);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
       case 'run_server_group': {
