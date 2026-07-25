@@ -1,0 +1,74 @@
+name: Bug report
+description: Something behaves differently than it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The two things that speed up a fix most are
+        **the exact command you ran** and **the output you saw** — pasted as
+        text rather than described.
+
+  - type: input
+    id: version
+    attributes:
+      label: Muster version
+      description: "Output of `muster --version` — it prints the version *and* the file it resolved, which matters when an old build is involved."
+      placeholder: "muster 0.1.10 /home/you/muster/dist/cli.js"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did this happen?
+      options:
+        - CLI (muster / muster up)
+        - Background daemon (muster daemon)
+        - VS Code / Cursor extension
+        - MCP tools (Claude Code, Codex, …)
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you ran, and what you got. Paste terminal output as text.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Your muster.json
+      description: "The relevant group from `.vscode/muster.json`. Please remove anything secret."
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Service logs
+      description: "If a service misbehaved, `muster logs <group>` usually has the answer. Logs also persist under `~/.muster/logs/` after the process exits."
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: environment
+    attributes:
+      label: OS and Node version
+      placeholder: "Ubuntu 24.04 (WSL2), Node 20.11"
+    validations:
+      required: true
