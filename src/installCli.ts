@@ -152,13 +152,22 @@ export async function installCli(context: vscode.ExtensionContext): Promise<void
 
     const line = pathExportLine(target, process.platform);
     const profile = process.platform === 'win32' ? 'a new terminal' : '~/.zshrc or ~/.bashrc';
-    const choice = await vscode.window.showInformationMessage(
-      `Muster: installed in ${target}, which is not on your PATH. Add this line to ${profile}: ${line}`,
-      'Copy PATH line'
-    );
-    if (choice === 'Copy PATH line') {
-      await vscode.env.clipboard.writeText(line);
-    }
+    // Deliberately not awaited. The install is already complete by this
+    // point — this notification is an offer, not a step. Awaiting it means
+    // the command doesn't resolve until someone clicks the button, which
+    // hangs forever anywhere nobody is watching: CI, a remote host, an
+    // agent driving VS Code. The clipboard write still happens on click.
+    void vscode.window
+      .showInformationMessage(
+        `Muster: installed in ${target}, which is not on your PATH. Add this line to ${profile}: ${line}`,
+        'Copy PATH line'
+      )
+      .then((choice) => {
+        if (choice === 'Copy PATH line') {
+          return vscode.env.clipboard.writeText(line);
+        }
+        return undefined;
+      });
   } catch (err) {
     vscode.window.showErrorMessage(`Muster: could not install the CLI — ${String(err)}`);
   }

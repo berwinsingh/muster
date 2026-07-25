@@ -39,6 +39,11 @@ jobs:
       - name: Run VS Code Extension Host smoke test
         id: integration
         continue-on-error: true
+        # Bounded well under the job timeout: if the Extension Host wedges —
+        # a dialog nobody can click, a terminal that never reports — this
+        # step should fail with a usable log, not silently consume the whole
+        # job and report as "cancelled" with nothing to read.
+        timeout-minutes: 6
         shell: bash
         run: |
           set -o pipefail
