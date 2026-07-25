@@ -3,21 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Muster — One click. Full stack running.</title>
-<meta name="description" content="Muster is a VS Code extension that assembles your dev servers — API, frontend, workers — into named groups you run, monitor, and stop with one click. MCP built in for AI agents.">
+<title>Muster — One command. Full stack running.</title>
+<meta name="description" content="Muster runs your dev servers — API, frontend, workers — as one named group, from the terminal, the editor, or an AI agent. Logs persist after the process exits. MCP built in.">
 <link rel="icon" type="image/png" href="icon.png?v=2">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://berwinsingh.github.io/muster/">
 <meta property="og:site_name" content="Muster">
-<meta property="og:title" content="Muster — One click. Full stack running.">
-<meta property="og:description" content="Dev server groups for VS Code — run, monitor, and control them from the editor, the terminal, or your AI agent. CLI, TUI dashboard, and MCP built in.">
+<meta property="og:title" content="Muster — One command. Full stack running.">
+<meta property="og:description" content="Dev server groups you run from the terminal, the editor, or your AI agent. Background daemon, logs that outlive the process, CLI + TUI dashboard, MCP built in.">
 <meta property="og:image" content="https://berwinsingh.github.io/muster/og-card.png?v=3">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Muster — One click. Full stack running.">
+<meta property="og:image:alt" content="Muster — One command. Full stack running.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Muster — One click. Full stack running.">
-<meta name="twitter:description" content="Dev server groups for VS Code — run, monitor, and control them from the editor, the terminal, or your AI agent.">
+<meta name="twitter:title" content="Muster — One command. Full stack running.">
+<meta name="twitter:description" content="Dev server groups you run from the terminal, the editor, or your AI agent — with logs that outlive the process.">
 <meta name="twitter:image" content="https://berwinsingh.github.io/muster/og-card.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -312,6 +312,42 @@
   }
   .feat h3 { font-size: 17.5px; font-weight: 600; margin-bottom: 8px; }
   .feat p { color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+
+  /* ---------- problem ---------- */
+  /* Deliberately cooler and flatter than .feat: this section is the tension,
+     not the pitch, so it should not read as another feature grid. */
+  #why { background: var(--bg-raise); border-block: 1px solid var(--line-soft); }
+  .prob-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;
+    margin-top: 52px;
+  }
+  .prob {
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid var(--line-soft);
+    border-left: 2px solid rgba(244, 112, 103, 0.5);
+    border-radius: 12px;
+    padding: 22px 24px;
+  }
+  .prob h3 { font-size: 16.5px; font-weight: 600; margin-bottom: 9px; }
+  .prob p { color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+  .prob .quote {
+    display: block; margin: 12px 0 0;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+    color: var(--faint);
+    border-left: 2px solid var(--line);
+    padding-left: 12px;
+  }
+  .prob .quote cite { display: block; margin-top: 6px; font-style: normal; }
+  .prob .quote a { color: var(--faint); text-decoration: underline; text-underline-offset: 2px; }
+  .prob .quote a:hover { color: var(--muted); }
+  .prob-close {
+    margin-top: 40px; padding: 24px 26px;
+    background: rgba(255, 180, 84, 0.05);
+    border: 1px solid rgba(255, 180, 84, 0.2);
+    border-radius: 14px;
+    font-size: 16.5px; color: var(--text);
+  }
+  .prob-close strong { color: var(--amber); }
   .feat p code {
     font-family: var(--mono); font-size: 12.5px;
     background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 5px;
@@ -381,6 +417,8 @@
     font-size: 10.5px; padding: 2px 9px; border-radius: 999px; letter-spacing: 0.04em;
   }
   .badge.read { background: rgba(108, 182, 255, 0.1); color: var(--blue); border: 1px solid rgba(108, 182, 255, 0.3); }
+  /* Writes config but starts nothing — a real middle tier between read and confirm. */
+  .badge.config { background: rgba(78, 203, 113, 0.1); color: var(--green); border: 1px solid rgba(78, 203, 113, 0.3); }
   .badge.confirm { background: rgba(255, 180, 84, 0.1); color: var(--amber); border: 1px solid rgba(255, 180, 84, 0.3); }
   .agents-copy p { color: var(--muted); margin-bottom: 16px; font-size: 16px; }
   .agents-copy p strong { color: var(--text); }
@@ -536,6 +574,7 @@
       MUSTER
     </a>
     <div class="nav-links">
+      <a href="#why">Why</a>
       <a href="#how">How it works</a>
       <a href="#features">Features</a>
       <a href="#cli">CLI</a>
@@ -548,17 +587,18 @@
 
 <header class="hero">
   <div class="wrap">
-    <span class="eyebrow">// a VS Code extension for dev server orchestration</span>
-    <h1>One click.<br><span class="accent">Full stack running.</span></h1>
+    <span class="eyebrow">// dev server groups for your terminal, your editor, and your agent</span>
+    <h1>One command.<br><span class="accent">Full stack running.</span></h1>
     <p class="hero-sub">
-      Muster assembles your dev servers — API, frontend, workers — into named groups
-      you run, monitor, and stop from a single panel. No more six terminals and a prayer.
+      Muster runs your API, frontend, and workers as one named group — and keeps hold of them.
+      Start it from the terminal, the editor, or an AI agent; the logs survive the crash,
+      the restart, and the closed window.
     </p>
     <div class="hero-ctas">
       <a class="btn btn-primary" href="#install">Install Muster</a>
       <a class="btn btn-ghost" href="https://github.com/berwinsingh/muster">View source ↗</a>
     </div>
-    <p class="hero-meta">MIT licensed<span>·</span>VS Code ≥ 1.96<span>·</span>MCP server built in<span>·</span>CLI + TUI included</p>
+    <p class="hero-meta">MIT licensed<span>·</span>No editor required<span>·</span>MCP server built in<span>·</span>CLI + TUI + daemon</p>
 
     <div class="mock-outer">
       <div class="window">
@@ -604,6 +644,56 @@
     </div>
   </div>
 </header>
+
+<section id="why">
+  <div class="wrap">
+    <p class="sec-eyebrow reveal">The problem</p>
+    <h2 class="reveal">A dev server never exits.<br>Everything around it assumes otherwise.</h2>
+    <p class="sec-sub reveal">Shells, task runners, and AI agents are all built around commands that start, do a thing, and finish. A dev server does none of that — it runs for hours, prints continuously, and only stops when something kills it. That single mismatch is where the whole day goes.</p>
+
+    <div class="prob-grid">
+      <div class="prob reveal">
+        <h3>Your agent runs it, then hangs</h3>
+        <p>Ask an agent to start the dev server and it waits for a command that will never return. Every major agent has hit this — and had to build a workaround for it.</p>
+        <span class="quote">
+          “Fixed <code>claude -p</code> hanging forever after its final result when a backgrounded command never exits.”
+          <cite><a href="https://github.com/anthropics/claude-code/issues/65498" target="_blank" rel="noopener">Claude Code changelog</a> · same pattern in <a href="https://github.com/openai/codex/issues/3968" target="_blank" rel="noopener">Codex</a>, <a href="https://forum.cursor.com/t/agent-terminal-commands-never-return-output-always-hit-30s-timeout-macos-zsh/153775" target="_blank" rel="noopener">Cursor</a>, <a href="https://github.com/orgs/community/discussions/170008" target="_blank" rel="noopener">Copilot</a></cite>
+        </span>
+      </div>
+
+      <div class="prob reveal">
+        <h3>The logs die with the session</h3>
+        <p>Close the terminal and the output goes with it. So the one question you actually want answered afterwards — <em>why did it crash?</em> — has nothing left to read.</p>
+        <span class="quote">
+          “Background tasks are automatically cleaned up when Claude&nbsp;Code exits.”
+          <cite><a href="https://code.claude.com/docs/en/interactive-mode" target="_blank" rel="noopener">Claude Code documentation</a></cite>
+        </span>
+      </div>
+
+      <div class="prob reveal">
+        <h3>Nothing keeps a handle on what's running</h3>
+        <p>With no durable record of what it started, an agent starts it again — and collides with the port it bound itself a minute earlier.</p>
+        <span class="quote">
+          “Claude keeps forgetting that it already started the dev server… started a second one even after it identified that the port… was already in use.”
+          <cite><a href="https://github.com/anthropics/claude-code/issues/9780" target="_blank" rel="noopener">claude-code#9780</a></cite>
+        </span>
+      </div>
+
+      <div class="prob reveal">
+        <h3>Watching output eats the context window</h3>
+        <p>Dev servers are noisy by design. Every line an agent reads is budget it isn't spending on your code — and one stuck process can dominate an entire session.</p>
+        <span class="quote">
+          Measured on one bug: ~50K tokens per 10 exchanges became 581K — <strong style="color:var(--muted)">11.6× waste</strong>.
+          <cite><a href="https://github.com/anthropics/claude-code/issues/11716" target="_blank" rel="noopener">claude-code#11716</a></cite>
+        </span>
+      </div>
+    </div>
+
+    <p class="prob-close reveal">
+      None of this is any one tool's fault — it's what happens when a process that never ends meets tooling that expects one that does. <strong>Muster is the piece that holds the process.</strong> It starts your stack and returns immediately, keeps the logs on disk after everything exits, and hands both humans and agents the same typed handle on what's actually running.
+    </p>
+  </div>
+</section>
 
 <section id="how">
   <div class="wrap">
@@ -680,6 +770,21 @@
         <h3>Trust &amp; safety</h3>
         <p>Blocked in untrusted workspaces. Only commands defined in config can run — no arbitrary shell. Your other terminals are never touched.</p>
       </div>
+      <div class="feat reveal">
+        <div class="feat-icon">🗄</div>
+        <h3>Logs that outlive the process</h3>
+        <p>Every line is kept on disk as timestamped, greppable text. Stop the group, restart it, close the terminal — the crash you were reading is still there. Retention is per group: <code>7d</code>, <code>48h</code>, or <code>none</code> to keep it until you clear it.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">⏻</div>
+        <h3>Stop keeps your scrollback</h3>
+        <p>Stopping interrupts the process and <em>leaves the terminal</em>, so a crash loop stays on screen to read. Restart reuses it and carries the history across a <code>— restarted —</code> divider instead of a blank screen.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">◍</div>
+        <h3>Background daemon</h3>
+        <p><code>muster daemon start</code> hands your stack to a process that outlives the terminal that launched it — and the editor. Close everything; <code>muster logs</code> and every MCP tool still work.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -746,26 +851,30 @@
 <section id="agents">
   <div class="wrap">
     <p class="sec-eyebrow reveal">MCP built in</p>
-    <h2 class="reveal">Your AI agent can run the stack too</h2>
-    <p class="sec-sub reveal">Muster ships a native Model Context Protocol server. Agents in Cursor, Claude, and any MCP client can discover, start, and monitor your groups — without ever getting arbitrary shell access.</p>
+    <h2 class="reveal">Give your agent the stack, not a shell</h2>
+    <p class="sec-sub reveal">Muster ships a native Model Context Protocol server. Agents in Claude Code, Cursor, Codex, and any MCP client can define, start, and read your groups through typed tools — no editor open, no arbitrary shell access, no watching a dev server swallow the conversation.</p>
     <div class="agents-panel reveal">
       <div>
         <h3>Tools</h3>
         <div class="tools">
           <div class="tool"><span class="t-name">list_server_groups</span><span class="badge read">read</span></div>
           <div class="tool"><span class="t-name">get_group_status</span><span class="badge read">read</span></div>
+          <div class="tool"><span class="t-name">get_service_logs</span><span class="badge read">read</span></div>
           <div class="tool"><span class="t-name">describe_config</span><span class="badge read">read</span></div>
+          <div class="tool"><span class="t-name">create_server_group</span><span class="badge config">config</span></div>
+          <div class="tool"><span class="t-name">add_service_to_group</span><span class="badge config">config</span></div>
           <div class="tool"><span class="t-name">run_server_group</span><span class="badge confirm">confirm</span></div>
           <div class="tool"><span class="t-name">stop_server_group</span><span class="badge confirm">confirm</span></div>
           <div class="tool"><span class="t-name">restart_server_group</span><span class="badge confirm">confirm</span></div>
         </div>
       </div>
       <div class="agents-copy">
-        <p><strong>Scoped by design.</strong> Agents can only act on group and service IDs defined in your config — unknown IDs are rejected, and every agent-initiated start/stop/restart pops a confirmation in VS Code that waits for your OK before anything runs.</p>
-        <p><strong>Logs and config as resources.</strong> Agents read live state through MCP resources instead of scraping terminals:</p>
+        <p><strong>It never blocks.</strong> Starting a group hands it to Muster and returns immediately — the agent gets a status back instead of hanging on a process that never exits. Ask for logs when you actually need them.</p>
+        <p><strong>Filtered, not firehosed.</strong> <code>get_service_logs</code> takes a severity and a substring, so an agent pulls <em>the errors from api</em> — a handful of lines — rather than pasting a megabyte of dev-server output into its context.</p>
+        <p><strong>Scoped by design.</strong> Agents act only on IDs defined in your config; unknown ones are rejected. Defining a group only writes config. Anything that actually starts or stops a process waits for your OK — a prompt in the editor, or an explicit <code>--allow-agent-actions</code> when you run the daemon headless.</p>
+        <p><strong>Works with no editor.</strong> The tools reach a running <code>muster daemon</code> or the VS Code extension, whichever is up:</p>
         <div class="res-list">
-          <div class="res">muster://config/workspace</div>
-          <div class="res">muster://logs/{groupId}/{serviceId}</div>
+          <div class="res">muster daemon start --allow-agent-actions</div>
         </div>
       </div>
     </div>
