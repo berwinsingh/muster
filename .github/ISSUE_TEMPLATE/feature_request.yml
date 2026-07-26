@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest something Muster should be able to do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        Describe the situation, not the solution. Knowing what you're
+        actually up against often surfaces a better answer than the one
+        either of us started with.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you'd like to see
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How you're working around it today
+      description: Even an ugly workaround is useful — it shows what the gap actually costs.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which part of Muster?
+      multiple: true
+      options:
+        - CLI / TUI dashboard
+        - Background daemon
+        - VS Code / Cursor extension
+        - MCP tools for AI agents
+        - Config format
+        - Docs / website
+    validations:
+      required: false

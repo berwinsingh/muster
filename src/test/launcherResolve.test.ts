@@ -9,11 +9,29 @@ const REPO = path.join(__dirname, '..', '..');
 const LAUNCHER = path.join(REPO, 'bin', 'muster.cjs');
 
 /**
- * The launchers are plain .cjs shipped as-is (never bundled), so they are
- * exercised the way users hit them: by running them.
+ * A checkout-shaped directory with its own bin/, dist/ and package.json.
+ * Tests must not lean on the repo's own dist/ — CI runs `npm test` before
+ * `npm run compile`, so it isn't built yet and the launcher would (rightly)
+ * refuse to resolve anything.
  */
-function runLauncher(args: string[], cwd = REPO): { stdout: string; stderr: string } {
-  const r = spawnSync(process.execPath, [LAUNCHER, ...args], { cwd, encoding: 'utf-8' });
+function fakeInstall(opts: { withSrc?: boolean; version?: string } = {}): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'muster-launcher-'));
+  fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'dist'), { recursive: true });
+  fs.copyFileSync(LAUNCHER, path.join(dir, 'bin', 'muster.cjs'));
+  fs.writeFileSync(path.join(dir, 'dist', 'cli.js'), 'process.exit(0);\n');
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({ name: 'muster', version: opts.version ?? '9.9.9' })
+  );
+  if (opts.withSrc) fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  return dir;
+}
+
+function runIn(dir: string, args: string[] = []): { stdout: string; stderr: string } {
+  const r = spawnSync(process.execPath, [path.join(dir, 'bin', 'muster.cjs'), ...args], {
+    encoding: 'utf-8',
+  });
   return { stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
@@ -21,9 +39,33 @@ describe('muster launcher', () => {
   test('--version reports the version and the exact file it resolved', () => {
     // "Which copy am I running?" is the question a stale build makes urgent,
     // so the path matters as much as the number.
-    const { stdout } = runLauncher(['--version']);
-    assert.match(stdout, /^muster \d+\.\d+\.\d+/m);
-    assert.match(stdout, /dist[/\\]cli\.js/);
+    const dir = fakeInstall({ version: '1.2.3' });
+    try {
+      const { stdout } = runIn(dir, ['--version']);
+      assert.match(stdout, /^muster 1\.2\.3$/m);
+      assert.match(stdout, /dist[/\\]cli\.js/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('reports a clear error when no compiled CLI can be found', () => {
+    // The state CI is actually in before `npm run compile` runs.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'muster-nodist-'));
+    try {
+      fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
+      fs.copyFileSync(LAUNCHER, path.join(dir, 'bin', 'muster.cjs'));
+      // HOME is redirected so a real extension install on the machine
+      // running the tests can't satisfy the lookup and mask this.
+      const r = spawnSync(process.execPath, [path.join(dir, 'bin', 'muster.cjs')], {
+        encoding: 'utf-8',
+        env: { ...process.env, HOME: dir, USERPROFILE: dir },
+      });
+      assert.match(r.stderr ?? '', /could not find the compiled CLI/);
+      assert.notEqual(r.status, 0);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('searches the remote/WSL extension directories too', () => {

@@ -39,6 +39,11 @@ jobs:
       - name: Run VS Code Extension Host smoke test
         id: integration
         continue-on-error: true
+        # Bounded well under the job timeout: if the Extension Host wedges —
+        # a dialog nobody can click, a terminal that never reports — this
+        # step should fail with a usable log, not silently consume the whole
+        # job and report as "cancelled" with nothing to read.
+        timeout-minutes: 6
         shell: bash
         run: |
           set -o pipefail
@@ -50,7 +55,11 @@ jobs:
         with:
           name: extension-host-log
           path: integration.log
-          if-no-files-found: error
+          # The smoke test may never get far enough to write a log — if an
+          # earlier step failed, the job is already red for a reason that
+          # matters, and a missing artifact shouldn't add a second, confusing
+          # failure on top of it.
+          if-no-files-found: ignore
 
       - name: Package VSIX
         run: npm run package -- --out muster-0.1.10.vsix
