@@ -15,18 +15,39 @@ import {
   filterLog,
   nextLevel,
 } from './logFilter';
+import type { ConfigChange, ConfigPort } from './configPort';
+import type { GroupConfig, ServiceConfig } from '../config/schema';
+import {
+  FormRow,
+  applyGroupEdit,
+  applyServiceEdit,
+  groupForm,
+  guessServiceId,
+  uniqueServiceId,
+  moveGroupHook,
+  moveServiceStep,
+  movedStepRow,
+  removeGroupRow,
+  removeServiceRow,
+  rowServiceId,
+  rowValue,
+  serviceForm,
+} from './form';
+import { tokenizeInput } from './input';
 import { buildActions, matchActions, PaletteAction } from './palette';
 import {
   A,
   Button,
   buildRows,
   renderButtons,
+  renderFormRow,
   renderHeader,
   renderRow,
   serviceColor,
   truncateAnsi,
   Row,
 } from './render';
+import { slugifyId } from '../config/slugify';
 
 /** What the dashboard needs from a backend; IpcClient satisfies this. */
 export interface DashboardSource {
@@ -55,13 +76,11 @@ export type TuiOptions = {
   /** Awaited after the screen is restored, before exit (teardown). */
   onQuit?: () => Promise<void>;
   /**
-   * Handler for `e` — edit the selected service's definition. The TUI hands
-   * over the terminal (alt screen off, raw mode off, polling paused) for the
-   * duration, so the handler may run a full-screen editor; the returned
-   * string is flashed once the dashboard is back. Omitted, `e` says the
-   * config isn't editable from here (a remote source's config isn't ours).
+   * Write access to the config behind this dashboard, enabling `e`. Omitted,
+   * `e` says so rather than guessing — a remote source's config isn't
+   * necessarily a file we own.
    */
-  onEdit?: (target: { groupId: string; serviceId?: string }) => Promise<string> | string;
+  config?: ConfigPort;
 };
 
 const ALT_ON = '\x1b[?1049h\x1b[?25l';
@@ -69,9 +88,15 @@ const ALT_OFF = '\x1b[?25h\x1b[?1049l';
 const MOUSE_ON = '\x1b[?1002h\x1b[?1006h';
 const MOUSE_OFF = '\x1b[?1006l\x1b[?1002l';
 const CLEAR = '\x1b[2J\x1b[H';
-const MOUSE_EVENT = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])/;
 
-type Mode = 'dash' | 'filter' | 'logs' | 'palette';
+type Mode = 'dash' | 'filter' | 'logs' | 'palette' | 'form';
+
+/** A value the form is asking for, and what to do with it. */
+type FormPrompt = {
+  label: string;
+  value: string;
+  done: (value: string) => Promise<void> | void;
+};
 
 export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Promise<void> {
   let rows: Row[] = [];
@@ -103,6 +128,15 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
   let paletteQuery = '';
   let paletteIndex = 0;
   let paletteMatches: PaletteAction[] = [];
+  // form state
+  let formTarget: { groupId: string; serviceId?: string } | null = null;
+  let formRows: FormRow[] = [];
+  let formIndex = 0;
+  let formPrompt: FormPrompt | null = null;
+  let formConfirm: { question: string; done: () => Promise<void> } | null = null;
+  let formError = '';
+  /** Set when a service form was opened from its group's form, so esc goes back. */
+  let formParentGroup: string | null = null;
   // layout metadata from the last draw, for mouse hit-testing (1-based rows)
   let rowsTopY = 0;
   let rowsStartIndex = 0;
@@ -185,6 +219,29 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
         ].filter(Boolean);
         out.push(`${A.dim}No lines matching ${parts.join(' + ')} (${raw.length} total).${A.reset}`);
       }
+    } else if (mode === 'form' && formTarget) {
+      const scope = formTarget.serviceId
+        ? `${formTarget.groupId}/${formTarget.serviceId}`
+        : formTarget.groupId;
+      out.push(
+        `${A.amber}edit${A.reset} ${A.bold}${scope}${A.reset} ${A.dim}(.vscode/muster.json — saved as you go)${A.reset}`
+      );
+      out.push('');
+      const room = Math.max(3, height - 8);
+      const start = Math.max(0, Math.min(formIndex - Math.floor(room / 2), formRows.length - room));
+      formRows.slice(start, start + room).forEach((row, i) => {
+        const { text, muted } = rowValue(row);
+        out.push(renderFormRow({ label: row.label, text, muted }, start + i === formIndex, width));
+      });
+      const hint = formRows[formIndex]?.hint;
+      if (hint && !formPrompt) {
+        out.push('');
+        out.push(`${A.dim}${hint}${A.reset}`);
+      }
+      if (formError) {
+        out.push('');
+        out.push(`${A.red}▲ ${formError}${A.reset}`);
+      }
     } else if (mode === 'palette') {
       out.push(`${A.invert} : ${paletteQuery}▏${A.reset} ${A.dim}(type an action — "stop web" — enter to run, esc to cancel)${A.reset}`);
       out.push('');
@@ -210,12 +267,27 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
     }
 
     const footer: string[] = [];
-    if (opts.statusLine && mode !== 'filter' && mode !== 'palette') {
+    if (opts.statusLine && mode !== 'filter' && mode !== 'palette' && mode !== 'form') {
       const activity = opts.statusLine();
       if (activity) footer.push(truncateAnsi(`${A.dim}‣${A.reset} ${activity}`, width));
     }
     if (flash) footer.push(`${A.amber}${flash}${A.reset}`);
-    if (mode === 'filter') {
+    if (mode === 'form' && formPrompt) {
+      footer.push(
+        truncateAnsi(
+          `${A.invert} ${formPrompt.label}: ${formPrompt.value}▏(enter saves, esc cancels) ${A.reset}`,
+          width
+        )
+      );
+      footerButtons = [];
+    } else if (mode === 'form' && formConfirm) {
+      footer.push(`${A.red}${formConfirm.question}${A.reset} ${A.dim}y to confirm, anything else cancels${A.reset}`);
+      footerButtons = [];
+    } else if (mode === 'form') {
+      const bar = renderButtons('form', width);
+      footer.push(bar.line);
+      footerButtons = bar.buttons;
+    } else if (mode === 'filter') {
       const editing = filterReturnMode === 'logs' ? logFilter : filter;
       footer.push(`${A.invert} filter: ${editing}▏(enter to apply, esc to clear) ${A.reset}`);
       footerButtons = [];
@@ -292,20 +364,246 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
     }
   }
 
-  async function edit(groupId: string, serviceId?: string): Promise<void> {
-    if (!opts.onEdit) {
+  /** The config object the open form is editing, read fresh from disk. */
+  function formSubject(): { group: GroupConfig; service?: ServiceConfig } | null {
+    if (!formTarget || !opts.config) return null;
+    const group = opts.config.group(formTarget.groupId);
+    if (!group) return null;
+    if (!formTarget.serviceId) return { group };
+    const service = group.services.find((s) => s.id === formTarget!.serviceId);
+    return service ? { group, service } : null;
+  }
+
+  /** Rebuild the rows from config, keeping the cursor on the same row. */
+  function reloadFormRows(preferId?: string): void {
+    const subject = formSubject();
+    if (!subject) {
+      closeForm();
+      flash = 'that config entry is gone';
+      flashTicks = 5;
+      return;
+    }
+    const wanted = preferId ?? formRows[formIndex]?.id;
+    formRows = subject.service ? serviceForm(subject.service) : groupForm(subject.group);
+    const found = formRows.findIndex((r) => r.id === wanted);
+    formIndex = found >= 0 ? found : Math.min(formIndex, formRows.length - 1);
+  }
+
+  function openForm(groupId: string, serviceId?: string, parent?: string): void {
+    if (!opts.config) {
       flash = 'editing is not available for this dashboard';
       flashTicks = 3;
       return;
     }
+    formTarget = { groupId, serviceId };
+    formParentGroup = parent ?? null;
+    formIndex = 0;
+    formError = '';
+    formPrompt = null;
+    formConfirm = null;
+    mode = 'form';
+    reloadFormRows(formRows.length === 0 ? undefined : formRows[0]?.id);
+    formIndex = 0;
+  }
+
+  function closeForm(): void {
+    mode = 'dash';
+    formTarget = null;
+    formRows = [];
+    formPrompt = null;
+    formConfirm = null;
+    formError = '';
+    formParentGroup = null;
+  }
+
+  /** Apply a change, keeping the message and any complaint in the right place. */
+  async function commit(change: ConfigChange, cursor?: string): Promise<void> {
+    if (!opts.config) return;
     try {
-      flash = await suspend(() => opts.onEdit!({ groupId, serviceId }));
+      flash = opts.config.update(change);
+      flashTicks = 8;
+      formError = '';
+    } catch (err) {
+      formError = err instanceof Error ? err.message : String(err);
+      return;
+    }
+    reloadFormRows(cursor);
+    await refresh();
+  }
+
+  function startPrompt(label: string, initial: string, done: FormPrompt['done']): void {
+    formPrompt = { label, value: initial, done };
+    formError = '';
+  }
+
+  /** Enter on the selected row. */
+  async function activateRow(): Promise<void> {
+    const row = formRows[formIndex];
+    const subject = formSubject();
+    if (!row || !subject || !formTarget) return;
+    const { group, service } = subject;
+
+    if (row.edit === 'open') {
+      const serviceId = rowServiceId(row.id);
+      if (serviceId) openForm(group.id, serviceId, group.id);
+      return;
+    }
+
+    if (row.edit === 'choice' && row.choices) {
+      // Cycling beats a sub-menu for two or three fixed options.
+      const next = row.choices[(row.choices.indexOf(row.value) + 1) % row.choices.length];
+      await commit({ kind: 'group', groupId: group.id, patch: applyGroupEdit(group, row.id, next) }, row.id);
+      return;
+    }
+
+    if (row.id === 'delete-group') {
+      formConfirm = {
+        question: `delete group ${group.id} and everything in it?`,
+        done: async () => {
+          await source.stop(group.id).catch(() => undefined);
+          await commit({ kind: 'delete-group', groupId: group.id });
+          closeForm();
+          await refresh();
+        },
+      };
+      return;
+    }
+
+    if (row.id === 'add-service') {
+      startPrompt('command for the new service', '', (raw) => {
+        const command = raw.trim();
+        if (!command) return;
+        const taken = group.services.map((s) => s.id);
+        const guess = uniqueServiceId(guessServiceId(command), taken);
+        startPrompt(`id for "${command}"`, guess, async (rawId) => {
+          const id = uniqueServiceId(slugifyId(rawId || guess, 'service'), taken);
+          await commit(
+            { kind: 'add-service', groupId: group.id, service: { id, name: id, command } },
+            `svc:${id}`
+          );
+        });
+      });
+      return;
+    }
+
+    const label = row.edit === 'add' ? row.label.replace(/^\+\s*/, '') : row.label.trim();
+    startPrompt(label, row.value, async (value) => {
+      try {
+        if (service) {
+          await commit(
+            {
+              kind: 'service',
+              groupId: group.id,
+              serviceId: service.id,
+              patch: applyServiceEdit(service, row.id, value),
+            },
+            row.id
+          );
+        } else {
+          await commit(
+            { kind: 'group', groupId: group.id, patch: applyGroupEdit(group, row.id, value) },
+            row.id
+          );
+        }
+      } catch (err) {
+        formError = err instanceof Error ? err.message : String(err);
+      }
+    });
+  }
+
+  /** `x` on the selected row: clear a field, drop a step, remove a service. */
+  async function removeRow(): Promise<void> {
+    const row = formRows[formIndex];
+    const subject = formSubject();
+    if (!row || !subject) return;
+    const { group, service } = subject;
+
+    const serviceId = rowServiceId(row.id);
+    if (serviceId) {
+      formConfirm = {
+        question: `remove service ${serviceId} from ${group.id}?`,
+        done: async () => {
+          // Stop it first, or the config loses the only handle on a
+          // process that is still running.
+          await source.stop(group.id, serviceId).catch(() => undefined);
+          await commit({ kind: 'delete-service', groupId: group.id, serviceId }, 'add-service');
+        },
+      };
+      return;
+    }
+
+    if (row.remove === undefined) {
+      formError = 'nothing to remove here';
+      return;
+    }
+
+    try {
+      if (service) {
+        await commit(
+          {
+            kind: 'service',
+            groupId: group.id,
+            serviceId: service.id,
+            patch: removeServiceRow(service, row.id),
+          },
+          row.remove === 'clear' ? row.id : undefined
+        );
+      } else {
+        await commit(
+          { kind: 'group', groupId: group.id, patch: removeGroupRow(group, row.id) },
+          undefined
+        );
+      }
+    } catch (err) {
+      formError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  /** `[` / `]` on a step or hook — order is meaningful, they chain with &&. */
+  async function moveRow(delta: -1 | 1): Promise<void> {
+    const row = formRows[formIndex];
+    const subject = formSubject();
+    if (!row || !subject) return;
+    if (!row.movable) {
+      formError = 'only steps and hooks can be reordered';
+      return;
+    }
+    try {
+      const { group, service } = subject;
+      if (service) {
+        await commit(
+          {
+            kind: 'service',
+            groupId: group.id,
+            serviceId: service.id,
+            patch: moveServiceStep(service, row.id, delta),
+          },
+          movedStepRow(row.id, delta)
+        );
+      } else {
+        await commit(
+          { kind: 'group', groupId: group.id, patch: moveGroupHook(group, row.id, delta) },
+          undefined
+        );
+      }
+    } catch (err) {
+      formError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  /** `J` — the escape hatch, for fields no form row covers. */
+  async function openRawEditor(): Promise<void> {
+    if (!opts.config || !formTarget) return;
+    const { groupId, serviceId } = formTarget;
+    try {
+      flash = await suspend(() => opts.config!.openInEditor(groupId, serviceId));
     } catch (err) {
       flash = `edit failed: ${err instanceof Error ? err.message : err}`;
     }
-    // Show config outcomes longer than a lifecycle flash — a validation
-    // complaint is worth reading, and 3s is not enough to.
+    // Config outcomes stay up longer than a lifecycle flash — a validation
+    // complaint is worth reading, and three seconds is not enough to.
     flashTicks = 8;
+    reloadFormRows();
     await refresh();
   }
 
@@ -373,7 +671,7 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
         return;
       }
       case 'edit':
-        await edit(action.groupId!, action.serviceId);
+        openForm(action.groupId!, action.serviceId);
         return;
       case 'filter-clear':
         filter = '';
@@ -428,6 +726,57 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
   async function onKey(key: string): Promise<void> {
     if (key === '\x03') {
       running = false;
+      return;
+    }
+
+    if (mode === 'form') {
+      if (formPrompt) {
+        const prompt = formPrompt;
+        if (key === '\r') {
+          formPrompt = null;
+          await prompt.done(prompt.value);
+          return;
+        }
+        if (key === '\x1b') { formPrompt = null; return; }
+        if (key === '\x7f') { prompt.value = prompt.value.slice(0, -1); return; }
+        if (key >= ' ' && !key.includes('\x1b')) { prompt.value += key; return; }
+        return;
+      }
+      if (formConfirm) {
+        const pending = formConfirm;
+        formConfirm = null;
+        if (key === 'y' || key === 'Y') await pending.done();
+        return;
+      }
+      if (key === '\x1b') {
+        // A service opened from its group's form goes back to it, not out.
+        const parent = formParentGroup;
+        closeForm();
+        if (parent) openForm(parent);
+        return;
+      }
+      if (key === '\x1b[A') { formIndex = Math.max(0, formIndex - 1); formError = ''; return; }
+      if (key === '\x1b[B') {
+        formIndex = Math.min(formRows.length - 1, formIndex + 1);
+        formError = '';
+        return;
+      }
+      if (key === '\r') { await activateRow(); return; }
+      if (key === 'a') {
+        // Jump to the next "+ add …" row and open it, so adding never
+        // requires arrowing down to find the right one.
+        const after = formRows.findIndex((r, i) => i >= formIndex && r.edit === 'add');
+        const target = after >= 0 ? after : formRows.findIndex((r) => r.edit === 'add');
+        if (target >= 0) {
+          formIndex = target;
+          await activateRow();
+        }
+        return;
+      }
+      if (key === 'x') { await removeRow(); return; }
+      if (key === '[') { await moveRow(-1); return; }
+      if (key === ']') { await moveRow(1); return; }
+      if (key === 'J') { await openRawEditor(); return; }
       return;
     }
 
@@ -525,7 +874,7 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
       }
       case 'e': {
         const row = rows[selected];
-        if (row) await edit(row.group.id, row.kind === 'service' ? row.serviceId : undefined);
+        if (row) openForm(row.group.id, row.kind === 'service' ? row.serviceId : undefined);
         return;
       }
     }
@@ -555,24 +904,12 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
   };
 
   async function onInput(chunk: string): Promise<void> {
-    // A chunk may carry several mouse events, a mouse event plus keys, or
-    // a plain key sequence. Mouse events are consumed first; whatever is
-    // left is treated as one key chord.
-    let remaining = chunk;
-    while (remaining.length > 0) {
-      const mouse = MOUSE_EVENT.exec(remaining);
-      if (mouse) {
-        await handleMouse(
-          parseInt(mouse[1], 10),
-          parseInt(mouse[2], 10),
-          parseInt(mouse[3], 10),
-          mouse[4] === 'M'
-        );
-        remaining = remaining.slice(mouse[0].length);
-        continue;
+    for (const token of tokenizeInput(chunk)) {
+      if (token.kind === 'mouse') {
+        await handleMouse(token.button, token.x, token.y, token.press);
+      } else {
+        await onKey(token.key);
       }
-      await onKey(remaining);
-      return;
     }
   }
 

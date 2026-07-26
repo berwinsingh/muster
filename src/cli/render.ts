@@ -195,13 +195,25 @@ export type LogsBarState = {
  * so the TUI can hit-test mouse clicks.
  */
 export function renderButtons(
-  mode: 'dash' | 'logs',
+  mode: 'dash' | 'logs' | 'form',
   width: number,
   quitLabel = 'quit',
   logs?: LogsBarState
 ): { line: string; buttons: Button[] } {
   const defs: { key: string; label: string }[] =
-    mode === 'dash'
+    mode === 'form'
+      ? // `esc` leads: it is the only way out of the form, and the bar is
+        // truncated from the right on an 80-column terminal.
+        [
+          { key: '\x1b', label: 'back' },
+          { key: '\r', label: 'edit' },
+          { key: 'a', label: 'add' },
+          { key: 'x', label: 'remove' },
+          { key: '[', label: 'move ↑' },
+          { key: ']', label: 'move ↓' },
+          { key: 'J', label: 'raw' },
+        ]
+      : mode === 'dash'
       ? [
           { key: 'r', label: 'run' },
           { key: 's', label: 'stop' },
@@ -226,7 +238,8 @@ export function renderButtons(
   let line = '';
   let col = 1;
   for (const def of defs) {
-    const keyText = def.key === '\x1b' ? 'esc' : def.key === '\t' ? 'tab' : def.key;
+    const keyText =
+      def.key === '\x1b' ? 'esc' : def.key === '\t' ? 'tab' : def.key === '\r' ? 'enter' : def.key;
     // Visible cells: " key " + " label " → key+2 plus label+2 columns.
     const visible = keyText.length + def.label.length + 4;
     const x1 = col;
@@ -235,8 +248,24 @@ export function renderButtons(
     line += `${A.invert}${A.amber} ${keyText} ${A.reset}${A.invert}${A.dim} ${def.label} ${A.reset} `;
     col = x2 + 2; // one-column gap between buttons
   }
-  const hint = mode === 'dash' ? '↑↓/click select' : '↑↓ scroll';
+  const hint = mode === 'logs' ? '↑↓ scroll' : '↑↓/click select';
   return { line: truncateAnsi(`${line}${A.dim}${hint}${A.reset}`, width), buttons };
+}
+
+/**
+ * One row of a config form: label in a fixed column, then its value —
+ * dimmed when it's a placeholder or a hint rather than a real setting.
+ */
+export function renderFormRow(
+  row: { label: string; muted: boolean; text: string },
+  selected: boolean,
+  width: number
+): string {
+  const marker = selected ? `${A.amber}▸${A.reset} ` : '  ';
+  const label = selected ? `${A.bold}${row.label}${A.reset}` : row.label;
+  const pad = ' '.repeat(Math.max(1, 16 - row.label.length));
+  const value = row.muted ? `${A.dim}${row.text}${A.reset}` : row.text;
+  return truncateAnsi(`${marker}${label}${pad}${value}`, width);
 }
 
 export function plainGroupList(groups: CliGroup[], statuses: Map<string, CliGroupStatus>): string {

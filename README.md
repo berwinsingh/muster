@@ -259,13 +259,35 @@ scroll wheel), or the command palette — press `:` and type what you want
 (`stop web` fuzzy-matches `stop split-demo/web`, enter runs it). In the
 sidebar tree, right-click a group or service for run/stop/edit/**delete**.
 
-`e` opens `.vscode/muster.json` in `$EDITOR` at the selected service's
-definition — for the changes no flag covers, like turning a `command` into
-a multi-step `commands` list. The dashboard hands over the terminal while
-the editor runs and validates what you saved on the way back, so a typo
-surfaces there and then instead of at the next start. An idle group picks
-the change up immediately; a running one keeps the definition its processes
-were started from until you restart it, and says so.
+`e` opens an editor for whatever is selected — no JSON, no leaving the
+dashboard. A service shows its name, command, working directory, port and
+environment pins as a list of rows; `enter` changes one, `a` adds a step,
+`x` removes or clears, `[` and `]` reorder. A group adds its layout, order,
+services and hooks to that, so you can add or delete a service without
+touching the file:
+
+```
+edit  org/python-ai  (.vscode/muster.json — saved as you go)
+
+  ▸ name            OrgWorkspace Python AI
+    step 1          . venv/bin/activate
+    step 2          pip install -r requirements.txt
+    step 3          uvicorn main:app --reload --port 8011
+    + add step      chained with && — a step that fails stops the ones after it
+    cwd             ${workspaceFolder}/docq_AI
+    port            8011
+```
+
+Adding a step to a single-command service converts it to a `commands` list
+for you, and removing the second-to-last collapses it back — the two are
+mutually exclusive in the schema, and neither should be something you have
+to know. Everything is written and validated as you go, so a bad value is
+refused with a reason instead of failing at the next start. `J` still drops
+to `$EDITOR` on the raw file for anything the form doesn't cover.
+
+An idle group picks changes up immediately; a running one keeps the
+definition its processes were started from until you restart it, and says
+so rather than pretending.
 
 The log view filters like a real log tool: `v` cycles severity
 (all → errors → warnings → info), `tab` cycles per-service focus in the

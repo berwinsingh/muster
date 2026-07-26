@@ -14,7 +14,7 @@
 import * as path from 'path';
 import { CliGroup, CliGroupStatus, IpcClient, NOT_RUNNING } from './client';
 import { detectServiceEnv } from './detect';
-import { editConfigTarget } from './editConfig';
+import { localConfigPort } from './configPort';
 import { findConfigRoot, loadHeadlessConfig, substitute } from './headlessConfig';
 import { initLocalConfig, openLocalConfig, saveLocalConfig, LocalConfig } from './localConfig';
 import {
@@ -132,8 +132,7 @@ async function runHeadless(rest: string[]): Promise<void> {
       quitLabel: 'quit (stops all)',
       statusLine: () => supervisor.lastActivity,
       onQuit: shutdown,
-      onEdit: ({ groupId, serviceId }) =>
-        applyEdit(configRoot, groupId, serviceId, () => source.reload()),
+      config: localConfigPort(configRoot, () => source.reload()),
     });
     return;
   }
@@ -238,7 +237,9 @@ a daemon is preferred when both are running for this workspace):
                              off when piped (or set NO_COLOR).
 
 Dashboard hotkeys: r run · s stop · x restart · l logs · a all logs ·
-                   e edit in $EDITOR · / filter · : command palette · q quit
+                   e edit · / filter · : command palette · q quit
+Edit view:  ↑↓ select · enter change · a add step/service/hook ·
+            x remove · [ ] reorder · J raw JSON in $EDITOR · esc back
 Logs view:  f follow · v cycle level (all→errors→warnings→info) ·
             tab cycle service (all-logs view) · / text filter · esc back
 
@@ -250,23 +251,6 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-/**
- * The dashboard's `e`: edit a service in $EDITOR, then tell the source to
- * pick the change up. `reload` reports false when the group is still
- * running — its processes were started from the old definition, so the
- * new one waits for a restart rather than silently disagreeing with what
- * is actually running.
- */
-function applyEdit(
-  root: string,
-  groupId: string,
-  serviceId: string | undefined,
-  reload: () => boolean
-): string {
-  const outcome = editConfigTarget(root, groupId, serviceId);
-  if (!outcome.changed || !outcome.valid) return outcome.message;
-  return reload() ? `${outcome.message} — reloaded` : `${outcome.message} — restart ${groupId} to apply`;
-}
 
 /** Parse "--flag value" pairs and bare positionals out of an argv slice. */
 function parseFlags(args: string[]): { positionals: string[]; flags: Record<string, string> } {
@@ -493,8 +477,7 @@ async function main(): Promise<void> {
         quitLabel: 'quit (stops all)',
         statusLine: () => source.lastActivity,
         onQuit: shutdown,
-        onEdit: ({ groupId, serviceId }) =>
-          applyEdit(root, groupId, serviceId, () => source.reloadGroup(groupId)),
+        config: localConfigPort(root, (groupId) => source.reloadGroup(groupId)),
       });
       return;
     }
