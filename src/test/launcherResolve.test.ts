@@ -141,6 +141,65 @@ describe('muster launcher', () => {
     }
   });
 
+  test('an unbuilt checkout says it is running the extension, not your tree', () => {
+    // `npm link` puts the launcher on PATH whether or not you built. With
+    // no dist/ it silently ran the installed extension instead, so edits
+    // to the checkout appeared to do nothing — and installing the
+    // extension again looked like the fix.
+    const fake = fs.mkdtempSync(path.join(os.tmpdir(), 'muster-unbuilt-'));
+    try {
+      fs.mkdirSync(path.join(fake, 'bin'), { recursive: true });
+      fs.mkdirSync(path.join(fake, 'src'), { recursive: true });
+      fs.copyFileSync(LAUNCHER, path.join(fake, 'bin', 'muster.cjs'));
+
+      const ext = path.join(fake, 'home', '.vscode', 'extensions', 'muster.muster-0.0.1', 'dist');
+      fs.mkdirSync(ext, { recursive: true });
+      fs.writeFileSync(path.join(ext, 'cli.js'), 'process.exit(0);\n');
+
+      const r = spawnSync(process.execPath, [path.join(fake, 'bin', 'muster.cjs')], {
+        encoding: 'utf-8',
+        env: { ...process.env, HOME: path.join(fake, 'home'), USERPROFILE: path.join(fake, 'home') },
+      });
+      assert.match(r.stderr ?? '', /no dist\//);
+      assert.match(r.stderr ?? '', /NOT your checkout/);
+      assert.match(r.stderr ?? '', /npm run compile/);
+      // It still runs — the warning explains, it doesn't block.
+      assert.equal(r.status, 0);
+    } finally {
+      fs.rmSync(fake, { recursive: true, force: true });
+    }
+  });
+
+  test('a packaged install running the extension copy stays quiet', () => {
+    // No src/ means there is no checkout to be confused with.
+    const fake = fs.mkdtempSync(path.join(os.tmpdir(), 'muster-pkg-ext-'));
+    try {
+      fs.mkdirSync(path.join(fake, 'bin'), { recursive: true });
+      fs.copyFileSync(LAUNCHER, path.join(fake, 'bin', 'muster.cjs'));
+      const ext = path.join(fake, 'home', '.vscode', 'extensions', 'muster.muster-0.0.1', 'dist');
+      fs.mkdirSync(ext, { recursive: true });
+      fs.writeFileSync(path.join(ext, 'cli.js'), 'process.exit(0);\n');
+
+      const r = spawnSync(process.execPath, [path.join(fake, 'bin', 'muster.cjs')], {
+        encoding: 'utf-8',
+        env: { ...process.env, HOME: path.join(fake, 'home'), USERPROFILE: path.join(fake, 'home') },
+      });
+      assert.doesNotMatch(r.stderr ?? '', /NOT your checkout/);
+      assert.equal(r.status, 0);
+    } finally {
+      fs.rmSync(fake, { recursive: true, force: true });
+    }
+  });
+
+  test('the not-found path explains the WSL split', () => {
+    // Can't fake /proc/version from a test, so assert the guidance exists
+    // and is reached from the not-found branch.
+    const source = fs.readFileSync(LAUNCHER, 'utf-8');
+    assert.match(source, /vscode-server\/extensions/);
+    assert.match(source, /Install in WSL/);
+    assert.match(source, /proc\/version/);
+  });
+
   test('a packaged install with no src/ never warns about staleness', () => {
     // An npm/extension install has no source tree to compare against; the
     // check must not fire (or crash) there.

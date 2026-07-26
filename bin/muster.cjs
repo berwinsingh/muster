@@ -99,19 +99,48 @@ function warnIfStale(cliPath, repoRoot) {
   }
 }
 
+/**
+ * `npm link` in a checkout puts this launcher on PATH whether or not the
+ * checkout has been built. With no dist/ we fall through to the installed
+ * extension — so you edit one tree and run a different one, and every
+ * change you make appears to do nothing. The stale check below covers the
+ * built-but-old case; this covers the never-built one, which is worse
+ * because there is no version difference to notice.
+ */
+function warnUnbuiltCheckout(repoRoot, running) {
+  process.stderr.write(
+    `muster: ${repoRoot} has no dist/, so this is NOT your checkout:\n` +
+      `        ${running}\n` +
+      '        That is the installed extension\'s CLI. To run your own tree:\n' +
+      '        npm run compile\n\n'
+  );
+}
+
+/** WSL keeps Linux extensions apart from the Windows ones; see below. */
+function isWsl() {
+  if (process.platform !== 'linux') return false;
+  try {
+    return /microsoft/i.test(fs.readFileSync('/proc/version', 'utf-8'));
+  } catch {
+    return false;
+  }
+}
+
 function resolveCli() {
   const repoRoot = path.join(__dirname, '..');
   const local = path.join(repoRoot, 'dist', 'cli.js');
+  // Only meaningful for a checkout, where src/ sits next to dist/.
+  const isCheckout = fs.existsSync(path.join(repoRoot, 'src'));
   if (fs.existsSync(local)) {
-    // Only meaningful for a checkout, where src/ sits next to dist/.
-    if (fs.existsSync(path.join(repoRoot, 'src'))) {
-      warnIfStale(local, repoRoot);
-    }
+    if (isCheckout) warnIfStale(local, repoRoot);
     return local;
   }
   for (const root of extensionRoots()) {
     const found = findInExtensionsDir(root);
-    if (found) return found;
+    if (found) {
+      if (isCheckout) warnUnbuiltCheckout(repoRoot, found);
+      return found;
+    }
   }
   return null;
 }
@@ -122,6 +151,18 @@ if (!cliPath) {
     'muster: could not find the compiled CLI.\n' +
       'Install the Muster VS Code extension, or build from source (npm install && npm run compile).\n'
   );
+  // An extension installed on the Windows side lives under the Windows
+  // profile, which is a different filesystem from this one — the install
+  // reports success and the Linux CLI still sees nothing. Naming that is
+  // the difference between a two-minute fix and an afternoon.
+  if (isWsl()) {
+    process.stderr.write(
+      '\nYou are on WSL. An extension installed on the Windows side is not\n' +
+        'visible here — Linux extensions live in ~/.vscode-server/extensions.\n' +
+        'In the Extensions view, use "Install in WSL", or build from source\n' +
+        'inside WSL.\n'
+    );
+  }
   process.exit(1);
 }
 
