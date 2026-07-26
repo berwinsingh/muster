@@ -54,6 +54,14 @@ export type TuiOptions = {
   statusLine?: () => string;
   /** Awaited after the screen is restored, before exit (teardown). */
   onQuit?: () => Promise<void>;
+  /**
+   * Handler for `e` — edit the selected service's definition. The TUI hands
+   * over the terminal (alt screen off, raw mode off, polling paused) for the
+   * duration, so the handler may run a full-screen editor; the returned
+   * string is flashed once the dashboard is back. Omitted, `e` says the
+   * config isn't editable from here (a remote source's config isn't ours).
+   */
+  onEdit?: (target: { groupId: string; serviceId?: string }) => Promise<string> | string;
 };
 
 const ALT_ON = '\x1b[?1049h\x1b[?25l';
@@ -87,6 +95,8 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
   let flashTicks = 0; // poll ticks the current flash stays visible
   let connectionError = '';
   let running = true;
+  // True while an external editor owns the terminal — polling must not draw.
+  let suspended = false;
   // '/' edits the dashboard filter or the log filter depending on where it was pressed
   let filterReturnMode: 'dash' | 'logs' = 'dash';
   // palette state
@@ -261,6 +271,44 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
     await performAction(action, row.group.id, row.kind === 'service' ? row.serviceId : undefined);
   }
 
+  /**
+   * Hand the terminal to an external program and take it back. The editor
+   * needs the normal screen, cooked input and stdin to itself — leaving
+   * our reader attached would eat its keystrokes, and the 1s poll would
+   * redraw the dashboard over whatever it painted.
+   */
+  async function suspend<T>(fn: () => Promise<T> | T): Promise<T> {
+    suspended = true;
+    process.stdin.pause();
+    process.stdin.setRawMode?.(false);
+    process.stdout.write(MOUSE_OFF + ALT_OFF);
+    try {
+      return await fn();
+    } finally {
+      process.stdout.write(ALT_ON + MOUSE_ON);
+      process.stdin.setRawMode?.(true);
+      process.stdin.resume();
+      suspended = false;
+    }
+  }
+
+  async function edit(groupId: string, serviceId?: string): Promise<void> {
+    if (!opts.onEdit) {
+      flash = 'editing is not available for this dashboard';
+      flashTicks = 3;
+      return;
+    }
+    try {
+      flash = await suspend(() => opts.onEdit!({ groupId, serviceId }));
+    } catch (err) {
+      flash = `edit failed: ${err instanceof Error ? err.message : err}`;
+    }
+    // Show config outcomes longer than a lifecycle flash — a validation
+    // complaint is worth reading, and 3s is not enough to.
+    flashTicks = 8;
+    await refresh();
+  }
+
   /** Display name for a feed id (the narrator feed's id is '@muster'). */
   function feedName(id: string): string {
     return id === opts.groupFeedId ? 'muster' : id;
@@ -324,6 +372,9 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
         if (row) await openCombinedLogs(row.group);
         return;
       }
+      case 'edit':
+        await edit(action.groupId!, action.serviceId);
+        return;
       case 'filter-clear':
         filter = '';
         await refresh();
@@ -472,6 +523,11 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
         if (row) await openCombinedLogs(row.group);
         return;
       }
+      case 'e': {
+        const row = rows[selected];
+        if (row) await edit(row.group.id, row.kind === 'service' ? row.serviceId : undefined);
+        return;
+      }
     }
   }
 
@@ -526,7 +582,7 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
         await quit();
         return;
       }
-      if (!quitting) draw();
+      if (!quitting && !suspended) draw();
     });
   });
 
@@ -537,6 +593,7 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
       clearInterval(timer);
       return;
     }
+    if (suspended) return; // an editor owns the screen; don't paint over it
     if (flashTicks > 0) {
       flashTicks -= 1;
     } else {

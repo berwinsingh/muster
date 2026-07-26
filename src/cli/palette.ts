@@ -7,7 +7,7 @@ import type { Row } from './render';
 
 export type PaletteAction = {
   label: string;
-  kind: 'run' | 'stop' | 'restart' | 'logs' | 'logs-group' | 'filter-clear' | 'quit';
+  kind: 'run' | 'stop' | 'restart' | 'logs' | 'logs-group' | 'edit' | 'filter-clear' | 'quit';
   groupId?: string;
   serviceId?: string;
 };
@@ -21,7 +21,8 @@ export function buildActions(rows: Row[], hasFilter: boolean): PaletteAction[] {
         { label: `run ${g}`, kind: 'run', groupId: g },
         { label: `stop ${g}`, kind: 'stop', groupId: g },
         { label: `restart ${g}`, kind: 'restart', groupId: g },
-        { label: `logs ${g} (all services)`, kind: 'logs-group', groupId: g }
+        { label: `logs ${g} (all services)`, kind: 'logs-group', groupId: g },
+        { label: `edit ${g} (config)`, kind: 'edit', groupId: g }
       );
     } else {
       const target = `${row.group.id}/${row.serviceId}`;
@@ -29,7 +30,8 @@ export function buildActions(rows: Row[], hasFilter: boolean): PaletteAction[] {
         { label: `run ${target}`, kind: 'run', groupId: row.group.id, serviceId: row.serviceId },
         { label: `stop ${target}`, kind: 'stop', groupId: row.group.id, serviceId: row.serviceId },
         { label: `restart ${target}`, kind: 'restart', groupId: row.group.id, serviceId: row.serviceId },
-        { label: `logs ${target}`, kind: 'logs', groupId: row.group.id, serviceId: row.serviceId }
+        { label: `logs ${target}`, kind: 'logs', groupId: row.group.id, serviceId: row.serviceId },
+        { label: `edit ${target} (config)`, kind: 'edit', groupId: row.group.id, serviceId: row.serviceId }
       );
     }
   }

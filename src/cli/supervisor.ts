@@ -71,15 +71,37 @@ export class Supervisor {
   private stopping = false;
   private upInFlight = false;
 
+  private current: GroupConfig;
+
   constructor(
-    readonly group: GroupConfig,
+    group: GroupConfig,
     readonly root: string,
     private readonly echo?: (line: string) => void,
     /** Auto-detect venvs / node pins in each service's cwd (off via --no-detect). */
     private readonly detect = true,
     /** Persists log history to disk; omitted, logs live only in memory. */
     private readonly logStore?: LogStore
-  ) {}
+  ) {
+    this.current = group;
+  }
+
+  get group(): GroupConfig {
+    return this.current;
+  }
+
+  /**
+   * Swap in a newer definition of the same group, after the config was
+   * edited underneath us. Refused while anything is still alive: the
+   * running processes were started from the old definition, and stopping
+   * them cleanly depends on it — the caller stops first, then swaps.
+   * Log history is deliberately kept; it belongs to the group, not to a
+   * particular version of its commands.
+   */
+  replaceGroup(group: GroupConfig): boolean {
+    if (this.alive) return false;
+    this.current = group;
+    return true;
+  }
 
   private prefix(serviceId: string): string {
     const ids = this.group.services.map((s) => s.id);
