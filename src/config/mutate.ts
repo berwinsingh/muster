@@ -77,6 +77,8 @@ export type GroupPatch = {
   label?: string;
   layout?: GroupConfig['layout'];
   order?: GroupConfig['order'];
+  /** `null` drops the hooks entirely; `undefined` leaves them alone. */
+  hooks?: GroupConfig['hooks'] | null;
 };
 
 export type ServicePatch = {
@@ -101,7 +103,11 @@ export function updateGroup(
   }
   const merged: Record<string, unknown> = { ...group };
   for (const [key, value] of Object.entries(patch)) {
-    if (value !== undefined) merged[key] = value;
+    if (value === undefined) continue;
+    // Clearing an optional field means removing the key, not storing null —
+    // the schema is strict and would reject `"hooks": null`.
+    if (value === null) delete merged[key];
+    else merged[key] = value;
   }
   const updated = GroupSchema.parse(merged);
   return { ...config, groups: config.groups.map((g) => (g.id === groupId ? updated : g)) };
