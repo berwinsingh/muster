@@ -106,9 +106,15 @@ Three ways to operate it:
 
 | Mode | How |
 |------|-----|
-| **Hotkeys** | `↑↓` select · `r` run · `s` stop · `x` restart (acts on the selected group *or* service) · `l` logs · `a` all-services logs · `/` filter · `q` quit |
+| **Hotkeys** | `↑↓` select · `r` run · `s` stop · `x` restart (acts on the selected group *or* service) · `l` logs · `a` all-services logs · `e` edit in `$EDITOR` · `/` filter · `q` quit |
 | **Mouse** | Click a row to select, click the selected row again to drill into its logs, click the footer buttons, scroll wheel to move/scroll |
 | **Command palette** | `:` opens a fuzzy-matched list of every live action — type (or paste) `stop web` to match `stop full-stack/web`, arrows choose, enter runs |
+
+`e` covers the edits the CLI flags can't express — a `commands` list, hooks,
+`dependsOn` — by opening `.vscode/muster.json` in `$EDITOR` at the selected
+service, then re-validating on the way back. The change reaches an idle
+group immediately and a running one at its next restart, which is when its
+processes can honestly be said to match the file.
 
 The log view follows output live (`f` toggles), scrolls with `↑↓`/wheel, and
 filters three composable ways: `v` cycles severity (all → errors → warnings

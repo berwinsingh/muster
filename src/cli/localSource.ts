@@ -7,6 +7,7 @@
  */
 import type { CliGroup, CliGroupStatus } from './client';
 import { GroupConfig, effectiveCommand } from '../config/schema';
+import { loadHeadlessConfig } from './headlessConfig';
 import { LogStore } from '../logs/store';
 import { openGroupLogStore } from '../logs/forGroup';
 import { Supervisor } from './supervisor';
@@ -72,8 +73,24 @@ export class LocalSource implements DashboardSource {
       await this.supervisor.restartService(serviceId);
     } else {
       await this.supervisor.stopGroup();
+      // Nothing is alive now, so this is the moment a config edit can
+      // safely take effect — otherwise a restart would faithfully re-run
+      // the command the user just changed.
+      this.reload();
       void this.supervisor.runGroup();
     }
+  }
+
+  /**
+   * Re-read this group from disk. Returns false when services are still
+   * running, in which case the swap has to wait for a group restart.
+   */
+  reload(): boolean {
+    const groupId = this.supervisor.group.id;
+    const { groups } = loadHeadlessConfig(this.supervisor.root);
+    const fresh = groups.find((g) => g.id === groupId);
+    if (!fresh) return false;
+    return this.supervisor.replaceGroup(fresh);
   }
 }
 
@@ -201,8 +218,25 @@ export class MultiLocalSource implements DashboardSource {
       await supervisor.restartService(serviceId);
     } else {
       await supervisor.stopGroup();
+      // See LocalSource.restart — with nothing alive, a pending config
+      // edit can finally be swapped in.
+      this.reloadGroup(groupId);
       void supervisor.runGroup();
     }
+  }
+
+  /**
+   * Point a group's supervisor at its current config, after an edit. A
+   * group that never ran has no supervisor to update — it reads config
+   * when one is built — so that counts as reloaded too. False means
+   * something is still running and the swap has to wait for a restart.
+   */
+  reloadGroup(groupId: string): boolean {
+    const supervisor = this.supervisors.get(groupId);
+    if (!supervisor) return true;
+    const fresh = this.allGroups.find((g) => g.id === groupId);
+    if (!fresh) return false;
+    return supervisor.replaceGroup(fresh);
   }
 
   /** The latest narrator line across every started group. */

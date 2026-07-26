@@ -253,11 +253,19 @@ a found venv or `.nvmrc` is stored in the config, a Python project with
 no venv gets a clear warning, and non-Python/Node commands are left alone.
 
 The dashboard is operated three ways: hotkeys (`r`/`s`/`x` act on the
-selected group *or* service, `l` logs, `a` all-services logs, `/` filter),
-the mouse (click rows to select, click the footer buttons, scroll wheel),
-or the command palette — press `:` and type what you want (`stop web`
-fuzzy-matches `stop split-demo/web`, enter runs it). In the sidebar tree,
-right-click a group or service for run/stop/edit/**delete**.
+selected group *or* service, `l` logs, `a` all-services logs, `e` edit,
+`/` filter), the mouse (click rows to select, click the footer buttons,
+scroll wheel), or the command palette — press `:` and type what you want
+(`stop web` fuzzy-matches `stop split-demo/web`, enter runs it). In the
+sidebar tree, right-click a group or service for run/stop/edit/**delete**.
+
+`e` opens `.vscode/muster.json` in `$EDITOR` at the selected service's
+definition — for the changes no flag covers, like turning a `command` into
+a multi-step `commands` list. The dashboard hands over the terminal while
+the editor runs and validates what you saved on the way back, so a typo
+surfaces there and then instead of at the next start. An idle group picks
+the change up immediately; a running one keeps the definition its processes
+were started from until you restart it, and says so.
 
 The log view filters like a real log tool: `v` cycles severity
 (all → errors → warnings → info), `tab` cycles per-service focus in the

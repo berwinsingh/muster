@@ -100,4 +100,14 @@ describe('cli rendering', () => {
     const defaultBar = renderButtons('dash', 200);
     assert.ok(strip(defaultBar.line).includes(' quit '));
   });
+
+  test('the dashboard offers edit, with a clickable hitbox like every other key', () => {
+    const { line, buttons } = renderButtons('dash', 200);
+    assert.ok(strip(line).includes(' edit '));
+    const edit = buttons.find((b) => b.key === 'e');
+    assert.ok(edit);
+    assert.equal(edit.x2 - edit.x1 + 1, 1 + 'edit'.length + 4);
+    // The logs view has no edit — nothing there is selected to edit.
+    assert.ok(!renderButtons('logs', 200).buttons.some((b) => b.key === 'e'));
+  });
 });

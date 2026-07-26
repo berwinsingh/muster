@@ -14,6 +14,7 @@
 import * as path from 'path';
 import { CliGroup, CliGroupStatus, IpcClient, NOT_RUNNING } from './client';
 import { detectServiceEnv } from './detect';
+import { editConfigTarget } from './editConfig';
 import { findConfigRoot, loadHeadlessConfig, substitute } from './headlessConfig';
 import { initLocalConfig, openLocalConfig, saveLocalConfig, LocalConfig } from './localConfig';
 import {
@@ -125,11 +126,14 @@ async function runHeadless(rest: string[]): Promise<void> {
     process.on('SIGTERM', () => void shutdown().then(() => process.exit(0)));
 
     void supervisor.runGroup(); // progress streams via statuses + narrator
-    await runTui(new LocalSource(supervisor), {
+    const source = new LocalSource(supervisor);
+    await runTui(source, {
       groupFeedId: MUSTER_FEED,
       quitLabel: 'quit (stops all)',
       statusLine: () => supervisor.lastActivity,
       onQuit: shutdown,
+      onEdit: ({ groupId, serviceId }) =>
+        applyEdit(configRoot, groupId, serviceId, () => source.reload()),
     });
     return;
   }
@@ -234,7 +238,7 @@ a daemon is preferred when both are running for this workspace):
                              off when piped (or set NO_COLOR).
 
 Dashboard hotkeys: r run · s stop · x restart · l logs · a all logs ·
-                   / filter · : command palette · q quit
+                   e edit in $EDITOR · / filter · : command palette · q quit
 Logs view:  f follow · v cycle level (all→errors→warnings→info) ·
             tab cycle service (all-logs view) · / text filter · esc back
 
@@ -244,6 +248,24 @@ Logs view:  f follow · v cycle level (all→errors→warnings→info) ·
 function fail(message: string): never {
   process.stderr.write(`${A.red}✗${A.reset} ${message}\n`);
   process.exit(1);
+}
+
+/**
+ * The dashboard's `e`: edit a service in $EDITOR, then tell the source to
+ * pick the change up. `reload` reports false when the group is still
+ * running — its processes were started from the old definition, so the
+ * new one waits for a restart rather than silently disagreeing with what
+ * is actually running.
+ */
+function applyEdit(
+  root: string,
+  groupId: string,
+  serviceId: string | undefined,
+  reload: () => boolean
+): string {
+  const outcome = editConfigTarget(root, groupId, serviceId);
+  if (!outcome.changed || !outcome.valid) return outcome.message;
+  return reload() ? `${outcome.message} — reloaded` : `${outcome.message} — restart ${groupId} to apply`;
 }
 
 /** Parse "--flag value" pairs and bare positionals out of an argv slice. */
@@ -451,8 +473,16 @@ async function main(): Promise<void> {
         if (!local) return;
       }
 
-      const { groups } = loadHeadlessConfig(local.root);
-      const source = new MultiLocalSource(local.root, groups, !rest.includes('--no-detect'), true);
+      // A loader rather than a snapshot: `e` edits the config underneath
+      // us, and the dashboard should show the new command straight away
+      // instead of a stale one until the next `muster`.
+      const root = local.root;
+      const source = new MultiLocalSource(
+        root,
+        () => loadHeadlessConfig(root).groups,
+        !rest.includes('--no-detect'),
+        true
+      );
       let teardown: Promise<void> | null = null;
       const shutdown = (): Promise<void> => (teardown ??= source.downAll());
       process.on('SIGINT', () => void shutdown().then(() => process.exit(0)));
@@ -463,6 +493,8 @@ async function main(): Promise<void> {
         quitLabel: 'quit (stops all)',
         statusLine: () => source.lastActivity,
         onQuit: shutdown,
+        onEdit: ({ groupId, serviceId }) =>
+          applyEdit(root, groupId, serviceId, () => source.reloadGroup(groupId)),
       });
       return;
     }

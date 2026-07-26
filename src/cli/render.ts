@@ -208,6 +208,7 @@ export function renderButtons(
           { key: 'x', label: 'restart' },
           { key: 'l', label: 'logs' },
           { key: 'a', label: 'all logs' },
+          { key: 'e', label: 'edit' },
           { key: '/', label: 'filter' },
           { key: ':', label: 'commands' },
           { key: 'q', label: quitLabel },

@@ -31,6 +31,14 @@ describe('command palette', () => {
     assert.ok(!labels.includes('clear filter'));
   });
 
+  test('offers edit for groups and services, so `e` has a typed equivalent', () => {
+    const actions = buildActions(rows(), false);
+    const edit = actions.find((a) => a.kind === 'edit' && a.serviceId === 'web');
+    assert.ok(edit);
+    assert.equal(edit.groupId, 'split-demo');
+    assert.ok(actions.some((a) => a.kind === 'edit' && a.groupId === 'split-demo' && !a.serviceId));
+  });
+
   test('offers clear filter only when a filter is active', () => {
     const labels = buildActions(rows(), true).map((a) => a.label);
     assert.ok(labels.includes('clear filter'));
