@@ -1,5 +1,8 @@
 # Muster
 
+[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/muster.muster)](https://marketplace.visualstudio.com/items?itemName=muster.muster)
+[![npm](https://img.shields.io/npm/v/muster-cli)](https://www.npmjs.com/package/muster-cli)
+
 One-click dev server group orchestration for VS Code with visual configuration and event monitoring.
 
 See [FEATURES.md](FEATURES.md) for the full feature list.
