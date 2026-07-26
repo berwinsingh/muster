@@ -1003,16 +1003,16 @@
   <div class="wrap">
     <p class="sec-eyebrow reveal">Install</p>
     <h2 class="reveal">Muster your stack</h2>
-    <p class="sec-sub reveal">The Marketplace listing is on its way. Until it lands, building from source takes under a minute.</p>
+    <p class="sec-sub reveal">On the Marketplace and on npm today — pick whichever fits how you work.</p>
     <div class="install-cols reveal">
       <div class="install-card primary">
         <div class="install-card-head">
           <h3>VS Code Marketplace</h3>
-          <span class="soon-badge">SOON</span>
+          <span class="now-badge">LIVE</span>
         </div>
         <p>One-click install from the Extensions view — search for <strong style="color:var(--text)">Muster</strong>, or:</p>
         <div class="cmd-block"><span class="dollar">$</span> code --install-extension muster.muster<button class="copy-btn" data-copy="code --install-extension muster.muster">copy</button></div>
-        <p style="margin:14px 0 0; font-size:13.5px; color:var(--faint)">⭐ Star the <a href="https://github.com/berwinsingh/muster" style="color:var(--amber)">repo</a> to get pinged when it ships. An Open&nbsp;VSX listing (Cursor, VSCodium) follows right after.</p>
+        <p style="margin:14px 0 0; font-size:13.5px; color:var(--faint)"><a href="https://marketplace.visualstudio.com/items?itemName=muster.muster" style="color:var(--amber)">View the listing ↗</a> · An Open&nbsp;VSX listing (Cursor, VSCodium) follows right after.</p>
       </div>
       <div class="install-card">
         <div class="install-card-head">
@@ -1030,11 +1030,60 @@
     <div class="install-card cli-card reveal">
       <div class="install-card-head">
         <h3>Prefer the terminal? Add the CLI</h3>
-        <span class="soon-badge">SOON</span>
+        <span class="now-badge">LIVE</span>
       </div>
-      <p>Once you have the extension (above), <span style="font-family:var(--mono);font-size:0.9em">npm install -g</span> puts <span style="font-family:var(--mono);font-size:0.9em">muster</span> and <span style="font-family:var(--mono);font-size:0.9em">muster-mcp</span> on your PATH in one command — no hunting through extension folders, no PATH edits. npm's own install mechanism handles that part; there's nothing else to configure.</p>
+      <p><span style="font-family:var(--mono);font-size:0.9em">npm install -g</span> puts <span style="font-family:var(--mono);font-size:0.9em">muster</span> and <span style="font-family:var(--mono);font-size:0.9em">muster-mcp</span> on your PATH in one command — no VS Code required. <span style="font-family:var(--mono);font-size:0.9em">muster up</span> runs your groups right in the terminal, dashboard and all.</p>
       <div class="cmd-block"><span class="dollar">$</span> npm install -g muster-cli<button class="copy-btn" data-copy="npm install -g muster-cli">copy</button></div>
-      <p style="margin:14px 0 0; font-size:13.5px; color:var(--faint)">Don't want to wait? The extension already offers to install the CLI itself the first time it sees a config — one click, no npm required.</p>
+      <p style="margin:14px 0 0; font-size:13.5px; color:var(--faint)">Already have the extension installed instead? It offers to install the CLI itself the first time it sees a config — one click, no npm required.</p>
+    </div>
+
+    <div class="connect-head reveal">
+      <h3>Where the CLI comes from</h3>
+      <p>The extension carries the CLI inside its own extension folder, and the editor puts that folder in a different place depending on where your code lives. That's invisible on macOS and Windows, and the whole story on WSL — so it's worth thirty seconds.</p>
+    </div>
+    <div class="env-cards reveal">
+      <div class="install-card">
+        <div class="install-card-head">
+          <h3>macOS &amp; Linux</h3>
+          <span class="now-badge">NOTHING TO DO</span>
+        </div>
+        <p>Install the extension, and the first time it sees a config it offers to put <span style="font-family:var(--mono);font-size:0.9em">muster</span> on your PATH — one click. It lands in <span style="font-family:var(--mono);font-size:0.9em">/usr/local/bin</span>, or <span style="font-family:var(--mono);font-size:0.9em">~/.local/bin</span> when that needs sudo.</p>
+        <div class="env-path"><strong>extensions live in</strong> ~/.vscode/extensions</div>
+      </div>
+
+      <div class="install-card">
+        <div class="install-card-head">
+          <h3>Windows</h3>
+          <span class="now-badge">NOTHING TO DO</span>
+        </div>
+        <p>Same one-click offer, into <span style="font-family:var(--mono);font-size:0.9em">%USERPROFILE%\.muster\bin</span>. If a new terminal can't find <span style="font-family:var(--mono);font-size:0.9em">muster</span>, that directory isn't on your PATH yet:</p>
+        <div class="cmd-block"><span class="dollar">&gt;</span> setx PATH "%PATH%;%USERPROFILE%\.muster\bin"<button class="copy-btn" data-copy="setx PATH &quot;%PATH%;%USERPROFILE%\.muster\bin&quot;">copy</button></div>
+        <div class="env-path"><strong>extensions live in</strong> %USERPROFILE%\.vscode\extensions</div>
+      </div>
+
+      <div class="install-card env-warn">
+        <div class="install-card-head">
+          <h3>WSL, Remote&nbsp;SSH, devcontainers, Codespaces</h3>
+          <span class="warn-badge">READ THIS</span>
+        </div>
+        <p>These keep <strong style="color:var(--text)">two separate sets of extensions</strong> — one for the editor's window, one for the machine your code is on. An extension installed on the Windows side is on a different filesystem from the shell you run <span style="font-family:var(--mono);font-size:0.9em">muster</span> in, so the install succeeds and the terminal sees nothing change.</p>
+        <p style="margin-bottom:12px">Install it <strong style="color:var(--text)">where the code is</strong>: open the folder in WSL first, then in the Extensions view use <strong style="color:var(--text)">Install in WSL</strong> (or <em>Install in Dev Container</em> / <em>Install in SSH</em>). Then check which copy you actually got:</p>
+        <div class="cmd-block"><span class="dollar">$</span> muster --version<button class="copy-btn" data-copy="muster --version">copy</button></div>
+        <p style="margin:14px 0 0; font-size:13.5px; color:var(--faint)">It prints the version <em>and</em> the file it resolved. On WSL that path must start with <span style="font-family:var(--mono);font-size:0.9em">/home/</span> — if it starts with <span style="font-family:var(--mono);font-size:0.9em">/mnt/c/</span>, or the command isn't found at all, you installed on the Windows side.</p>
+        <div class="env-path"><strong>extensions live in</strong> ~/.vscode-server/extensions</div>
+      </div>
+
+      <div class="install-card">
+        <div class="install-card-head">
+          <h3>Building from source?</h3>
+          <span class="warn-badge">ONE GOTCHA</span>
+        </div>
+        <p><span style="font-family:var(--mono);font-size:0.9em">npm link</span> puts <span style="font-family:var(--mono);font-size:0.9em">muster</span> on your PATH pointing at your checkout — but a checkout with nothing built has no CLI to run, so it falls back to the installed extension's copy. You'd be editing one tree and running another. Build first:</p>
+        <div class="cmd-block"><span class="dollar">$</span> npm install &amp;&amp; npm run compile
+<span class="dollar">$</span> npm link
+<span class="dollar">$</span> muster --version<button class="copy-btn" data-copy="npm install && npm run compile && npm link && muster --version">copy</button></div>
+        <p style="margin:14px 0 0; font-size:13.5px; color:var(--faint)">The last line should print a path inside your checkout. If it doesn't, <span style="font-family:var(--mono);font-size:0.9em">muster</span> says so on stderr rather than letting you debug a fix you already made.</p>
+      </div>
     </div>
 
     <div class="connect-head reveal">
