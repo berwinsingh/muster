@@ -1,0 +1,9 @@
+Your API starts before your database is ready, and dies.
+
+`concurrently`, `npm-run-all` and `turbo` can't fix that — they start
+everything at once. Vercel closed the request for it as "not planned".
+
+Muster waits for a ready signal, then starts what depends on it. One config,
+one command, with or without VS Code.
+
+github.com/berwinsingh/muster

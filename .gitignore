@@ -9,3 +9,5 @@ dist-test/
 packages/muster-cli/bin/
 packages/muster-cli/dist/
 *.tgz
+renders/
+snapshots/
