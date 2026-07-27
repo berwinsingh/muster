@@ -3,17 +3,20 @@ import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } fr
 import { C } from '../theme';
 import { mono, sans } from '../fonts';
 import { Backdrop } from '../components/Statement';
+import { Bloom } from '../components/Camera';
 import { Logo } from '../components/Logo';
 
 export const Close: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  // Lands with a little overshoot — the last thing on screen should arrive,
+  // not drift in.
   const logoIn = spring({
     frame,
     fps,
-    config: { damping: 200, mass: 0.8 },
-    durationInFrames: 34,
+    config: { damping: 14, mass: 0.6, stiffness: 120 },
+    durationInFrames: 32,
   });
 
   const lineIn = interpolate(frame, [22, 44], [0, 1], {
@@ -29,6 +32,7 @@ export const Close: React.FC = () => {
   return (
     <AbsoluteFill>
       <Backdrop glow={1} />
+      <Bloom at={6} intensity={0.1} />
       <AbsoluteFill
         style={{
           alignItems: 'center',

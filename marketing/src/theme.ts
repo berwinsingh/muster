@@ -30,13 +30,13 @@ export const FPS = 30;
  * overlapping deliberately rather than by accident.
  */
 export const SCENES = {
-  problem: { from: 0, duration: 150 },     // 0.0s – 5.0s
-  oneCommand: { from: 150, duration: 105 }, // 5.0s – 8.5s
-  boot: { from: 255, duration: 255 },       // 8.5s – 17.0s
-  logs: { from: 510, duration: 165 },       // 17.0s – 22.5s
-  edit: { from: 675, duration: 150 },       // 22.5s – 27.5s
-  agents: { from: 825, duration: 120 },     // 27.5s – 31.5s
-  close: { from: 945, duration: 135 },      // 31.5s – 36.0s
+  problem: { from: 0, duration: 148 },      // 0.00s – 4.93s  (collapse at ~3.9s)
+  oneCommand: { from: 148, duration: 92 },  // 4.93s – 8.00s
+  boot: { from: 240, duration: 250 },       // 8.00s – 16.33s
+  logs: { from: 490, duration: 145 },       // 16.33s – 21.17s
+  edit: { from: 635, duration: 140 },       // 21.17s – 25.83s
+  agents: { from: 775, duration: 125 },     // 25.83s – 30.00s
+  close: { from: 900, duration: 150 },      // 30.00s – 35.00s
 } as const;
 
 export const TOTAL_FRAMES =

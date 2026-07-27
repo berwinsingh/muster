@@ -1,8 +1,9 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { C } from '../theme';
 import { mono, sans } from '../fonts';
 import { Backdrop } from '../components/Statement';
+import { Bloom, punch } from '../components/Camera';
 import { Cursor, Terminal, typed } from '../components/Terminal';
 import { Dashboard, Service, ServiceState } from '../components/Dashboard';
 
@@ -48,6 +49,14 @@ export const Boot: React.FC = () => {
     })
   );
 
+  // One decaying pulse per service, fired the frame it reports ready.
+  const rowFlash = READY_AT.map((at) =>
+    interpolate(frame, [at, at + 2, at + 20], [0, 1, 0], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    })
+  );
+
   const allUp = frame >= READY_AT[READY_AT.length - 1];
   const activity = !submitted
     ? undefined
@@ -57,11 +66,22 @@ export const Boot: React.FC = () => {
         ? 'starting 5 services · layout: headless · order: parallel'
         : 'preRun: docker compose up -d db';
 
-  // A gentle push-in over the whole scene.
-  const push = interpolate(frame, [46, 255], [1, 1.045], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  // The window grows out of the point the six terminals collapsed into,
+  // then drifts forward for the rest of the shot.
+  const open = spring({
+    frame,
+    fps,
+    config: { damping: 20, mass: 0.6, stiffness: 110 },
+    durationInFrames: 28,
   });
+  const push =
+    interpolate(open, [0, 1], [0.55, 1]) *
+    interpolate(frame, [28, 250], [1, 1.05], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }) *
+    // A beat of emphasis when the stack finishes coming up.
+    punch(frame, READY_AT[READY_AT.length - 1], 0.035);
 
   const captionIn = interpolate(frame, [READY_AT[4] + 8, READY_AT[4] + 28], [0, 1], {
     extrapolateLeft: 'clamp',
@@ -90,12 +110,15 @@ export const Boot: React.FC = () => {
                 services={SERVICES}
                 states={states}
                 rowReveal={rowReveal}
+                rowFlash={rowFlash}
                 activity={activity}
               />
             </div>
           )}
         </Terminal>
       </AbsoluteFill>
+
+      <Bloom at={READY_AT[READY_AT.length - 1]} intensity={0.09} />
 
       <AbsoluteFill
         style={{
