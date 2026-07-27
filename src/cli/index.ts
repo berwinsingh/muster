@@ -241,7 +241,8 @@ Dashboard hotkeys: r run · s stop · x restart · l logs · a all logs ·
 Edit view:  ↑↓ select · enter change · a add step/service/hook ·
             x remove · [ ] reorder · J raw JSON in $EDITOR · esc back
 Logs view:  f follow · v cycle level (all→errors→warnings→info) ·
-            tab cycle service (all-logs view) · / text filter · esc back
+            w wrap/truncate long lines · tab cycle service (all-logs view) ·
+            / text filter · ↑↓ PgUp PgDn scroll · g top · G newest · esc back
 
   muster help                This message
 `;

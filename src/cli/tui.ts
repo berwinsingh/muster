@@ -45,6 +45,7 @@ import {
   renderRow,
   serviceColor,
   truncateAnsi,
+  wrapAnsi,
   Row,
 } from './render';
 import { slugifyId } from '../config/slugify';
@@ -115,7 +116,9 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
   let combinedCounts = new Map<string, number>();
   let combinedServices: string[] = [];
   let combinedFocus = -1; // index into combinedServices; -1 = all
-  let lastVisibleCount = 0; // lines shown by the last draw, for scroll clamping
+  let lastVisibleCount = 0; // screen rows the log view has, for scroll clamping
+  let lastRoom = 10; // rows the log view can show at once, from the last draw
+  let logWrap = true; // wrap long lines; `w` truncates instead
   let flash = '';
   let flashTicks = 0; // poll ticks the current flash stays visible
   let connectionError = '';
@@ -195,22 +198,42 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
         : `(${logsTarget.groupId}/${logsTarget.serviceId})`;
       const filterTag = logFilter ? `  ${A.amber}/${logFilter}${A.reset}` : '';
       const levelTag = logLevel !== 'all' ? `  ${A.amber}level: ${LEVEL_LABEL[logLevel]}${A.reset}` : '';
-      out.push(
-        `${A.amber}logs${A.reset} ${A.bold}${logsTarget.name}${A.reset} ${A.dim}${scope}${A.reset} ${follow ? `${A.green}following${A.reset}` : `${A.dim}paused${A.reset}`}${levelTag}${filterTag}`
-      );
-      out.push('');
+
       const raw = isCombined
         ? (focusId ? combined.filter((e) => e.serviceId === focusId) : combined).map(
             (e) => `${combinedPrefix(e.serviceId)} ${e.line}`
           )
         : logLines;
       const visible = filterLog(raw, logLevel, logFilter);
-      lastVisibleCount = visible.length;
-      const room = height - 6;
-      const end = logScroll === 0 ? visible.length : visible.length - logScroll;
-      const slice = visible.slice(Math.max(0, end - room), end);
-      for (const line of slice) {
-        out.push(truncateAnsi(line, width));
+
+      // Scrolling counts *screen* rows, not log lines: with wrapping on, one
+      // traceback line can be three rows, and paging by lines would jump
+      // unpredictably far.
+      const screenRows = logWrap
+        ? visible.flatMap((line) => wrapAnsi(line, width))
+        : visible.map((line) => truncateAnsi(line, width));
+
+      const room = Math.max(1, height - 6);
+      lastVisibleCount = screenRows.length;
+      lastRoom = room;
+      // Clamp here as well as on keypress: a resize, a filter, or lines
+      // ageing out can leave a scroll offset pointing past the top.
+      const maxScroll = Math.max(0, screenRows.length - room);
+      if (logScroll > maxScroll) logScroll = maxScroll;
+      const end = screenRows.length - logScroll;
+      const start = Math.max(0, end - room);
+
+      const position =
+        logScroll > 0 && screenRows.length > 0
+          ? `  ${A.dim}${start + 1}–${end} of ${screenRows.length}${A.reset}`
+          : '';
+      out.push(
+        `${A.amber}logs${A.reset} ${A.bold}${logsTarget.name}${A.reset} ${A.dim}${scope}${A.reset} ${follow ? `${A.green}following${A.reset}` : `${A.dim}paused${A.reset}`}${position}${levelTag}${filterTag}`
+      );
+      out.push('');
+
+      for (const line of screenRows.slice(start, end)) {
+        out.push(line);
       }
       if (visible.length === 0 && raw.length > 0) {
         const parts = [
@@ -299,6 +322,8 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
         mode === 'logs' && logsTarget
           ? {
               level: LEVEL_LABEL[logLevel],
+              wrap: logWrap,
+              following: follow,
               focus:
                 logsTarget.serviceId === null
                   ? combinedFocus >= 0
@@ -607,6 +632,19 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
     await refresh();
   }
 
+  /**
+   * Move the log view by whole screen rows. Positive scrolls towards older
+   * output. The top of the range is `rows - room`, not `rows - 5`: stopping
+   * short of a full screen left the view almost empty at the top, which
+   * looked like the history had been lost.
+   */
+  function scrollLogs(rows: number): void {
+    const maxScroll = Math.max(0, lastVisibleCount - lastRoom);
+    logScroll = Math.min(Math.max(0, logScroll + rows), maxScroll);
+    // Reaching the bottom resumes following; leaving it stops.
+    follow = logScroll === 0;
+  }
+
   /** Display name for a feed id (the narrator feed's id is '@muster'). */
   function feedName(id: string): string {
     return id === opts.groupFeedId ? 'muster' : id;
@@ -688,8 +726,7 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
     if (button === 64 || button === 65) {
       const delta = button === 64 ? -1 : 1;
       if (mode === 'logs') {
-        if (delta < 0) { follow = false; logScroll = Math.min(logScroll + 3, Math.max(0, lastVisibleCount - 5)); }
-        else { logScroll = Math.max(0, logScroll - 3); if (logScroll === 0) follow = true; }
+        scrollLogs(delta < 0 ? 3 : -3);
       } else if (mode === 'dash') {
         selected = Math.max(0, Math.min(rows.length - 1, selected + delta));
       }
@@ -824,8 +861,14 @@ export async function runTui(source: DashboardSource, opts: TuiOptions = {}): Pr
         return;
       }
       if (key === '/') { filterReturnMode = 'logs'; mode = 'filter'; return; }
-      if (key === '\x1b[A') { follow = false; logScroll = Math.min(logScroll + 3, Math.max(0, lastVisibleCount - 5)); return; }
-      if (key === '\x1b[B') { logScroll = Math.max(0, logScroll - 3); if (logScroll === 0) follow = true; return; }
+      if (key === 'w') { logWrap = !logWrap; logScroll = 0; follow = true; return; }
+      if (key === '\x1b[A') { scrollLogs(3); return; }
+      if (key === '\x1b[B') { scrollLogs(-3); return; }
+      // A page keeps one row of overlap, so you don't lose your place.
+      if (key === '\x1b[5~') { scrollLogs(Math.max(1, lastRoom - 1)); return; }
+      if (key === '\x1b[6~') { scrollLogs(-Math.max(1, lastRoom - 1)); return; }
+      if (key === 'g' || key === '\x1b[H') { scrollLogs(lastVisibleCount); return; }
+      if (key === 'G' || key === '\x1b[F') { scrollLogs(-lastVisibleCount); return; }
       return;
     }
 
