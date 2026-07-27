@@ -35,6 +35,34 @@ export function discoveryFilePath(
   return path.join(dir, `${workspaceKey(workspaceRoot)}${suffix}`);
 }
 
+/** True when `dir` is `workspace` itself, or lives inside it. */
+export function workspaceContains(workspace: string, dir: string): boolean {
+  if (!workspace) return false;
+  const root = path.resolve(workspace);
+  const target = path.resolve(dir);
+  return target === root || target.startsWith(root + path.sep);
+}
+
+/**
+ * True when a discovered server should be ignored in favour of the config
+ * in `dir`: it serves an unrelated workspace, and `dir` has one of its own.
+ *
+ * findDiscovery falls back to any live server when nothing matches the
+ * current directory. That is right when you have no config of your own and
+ * wrong when you do — it answers for a stranger's workspace while your
+ * .vscode/muster.json sits right there. Both the CLI and the MCP server ask
+ * this question; what they can do about it differs (the CLI has a local
+ * config to fall back on, the MCP server can only refuse), so each phrases
+ * its own message and only the rule is shared.
+ */
+export function servesElsewhere(
+  serverWorkspace: string,
+  dir: string,
+  localRoot: string | null
+): boolean {
+  return localRoot !== null && !workspaceContains(serverWorkspace, dir);
+}
+
 export function isPidAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
@@ -93,7 +121,8 @@ function readEntry(file: string): IpcDiscovery | null {
  * extension instead would report a group as stopped while it is still up.
  * Set MUSTER_IPC_KIND=extension to invert that.
  *
- * Stale entries (dead pid or unparsable) are deleted as they are seen.
+ * Stale entries are deleted as they are seen: unparsable, dead pid, or a
+ * workspace directory that no longer exists on disk.
  */
 export function findDiscovery(
   workspaceHint: string | null,
@@ -113,7 +142,10 @@ export function findDiscovery(
   for (const name of files) {
     const file = path.join(dir, name);
     const entry = readEntry(file);
-    if (!entry || !isPidAlive(entry.pid)) {
+    // A live pid is not enough: an extension host outlives the folder it
+    // was opened on, and a server whose workspace has been deleted can
+    // only serve config that no longer exists. Treat it as dead.
+    if (!entry || !isPidAlive(entry.pid) || !fs.existsSync(entry.workspace)) {
       try {
         fs.unlinkSync(file);
       } catch {
@@ -144,10 +176,7 @@ export function findDiscovery(
   if (hint) {
     const exact = alive.find(({ entry }) => path.resolve(entry.workspace) === hint);
     if (exact) return exact.entry;
-    const parent = alive.find(
-      ({ entry }) =>
-        entry.workspace && hint.startsWith(path.resolve(entry.workspace) + path.sep)
-    );
+    const parent = alive.find(({ entry }) => workspaceContains(entry.workspace, hint));
     if (parent) return parent.entry;
   }
 

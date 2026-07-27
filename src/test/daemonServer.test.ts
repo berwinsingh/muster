@@ -254,7 +254,8 @@ describe('daemon HTTP server', () => {
 
   it('findDiscovery prefers a daemon entry over an extension entry for the same workspace', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'muster-daemon-prefer-'));
-    const workspace = '/fake/shared-workspace';
+    // A real directory: findDiscovery prunes entries whose workspace is gone.
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'muster-shared-ws-'));
     // Both "servers" claim to be alive by using this test process's own pid.
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
