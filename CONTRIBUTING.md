@@ -83,13 +83,21 @@ tidy — the PR title becomes the commit subject, so make that good.
 
 ## Filing issues
 
-Use the templates. For a bug, the two things that actually speed up a fix
-are **what you ran** and **what you saw** — the exact command, and the
-output pasted as text rather than described.
+Issues are for bugs — something that should work and doesn't. Use the
+templates. For a bug, the two things that actually speed up a fix are
+**what you ran** and **what you saw** — the exact command, and the output
+pasted as text rather than described.
 
 If it involves a service that wouldn't start, `muster logs <group>` and
 your `.vscode/muster.json` (with any secrets removed) are usually enough to
 diagnose it.
+
+For anything that isn't a bug — a question, a config you can't quite get
+working, or something you built with Muster — use
+[Discussions](https://github.com/berwinsingh/muster/discussions) instead:
+[Q&A](https://github.com/berwinsingh/muster/discussions/categories/q-a) or
+[Show and tell](https://github.com/berwinsingh/muster/discussions/categories/show-and-tell).
+It keeps the issue tracker to things that need a code change.
 
 ## Security
 
