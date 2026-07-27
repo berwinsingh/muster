@@ -5,7 +5,7 @@
 
 One-click dev server group orchestration for VS Code with visual configuration and event monitoring.
 
-See [FEATURES.md](FEATURES.md) for the full feature list.
+See [FEATURES.md](FEATURES.md) for the full feature list. Built something with it, or have a question that isn't a bug? [Discussions](https://github.com/berwinsingh/muster/discussions) is the place — [Show and tell](https://github.com/berwinsingh/muster/discussions/categories/show-and-tell) for what you made, [Q&A](https://github.com/berwinsingh/muster/discussions/categories/q-a) for help.
 
 ## Quick start (3 clicks)
 

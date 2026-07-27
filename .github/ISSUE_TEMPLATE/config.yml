@@ -4,5 +4,8 @@ contact_links:
     url: https://github.com/berwinsingh/muster/security/advisories/new
     about: Please report privately rather than opening a public issue.
   - name: Setup and usage questions
-    url: https://github.com/berwinsingh/muster#readme
-    about: The README covers install, the CLI, the daemon, and connecting an AI agent.
+    url: https://github.com/berwinsingh/muster/discussions/categories/q-a
+    about: Ask in Q&A — the README (in the repo) covers install, the CLI, the daemon, and connecting an AI agent, but this is the place for what it doesn't answer.
+  - name: Show and tell
+    url: https://github.com/berwinsingh/muster/discussions/categories/show-and-tell
+    about: Built something with Muster? Show it off — this isn't a bug report.
