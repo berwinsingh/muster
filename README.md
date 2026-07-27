@@ -298,6 +298,15 @@ combined view, `/` adds a text filter, and all three compose. The same
 severity classifier backs `muster logs --level` and the MCP
 `get_service_logs` tool, so humans and agents see the same triage.
 
+It reads like one, too. Long lines **wrap** rather than being cut off —
+which matters most in a stack trace, where the end of the line is the part
+you need (`File ".../session.py", line 2036, in commit` shouldn't stop at
+`line`). `w` switches to truncation when you'd rather keep the columns
+aligned. Scroll with `↑↓` or the wheel, `PgUp`/`PgDn` by the screenful,
+`g` for the start and `G` back to newest; once you're off the tail the
+header tracks where you are — `paused  1–18 of 184` — and reaching the
+bottom resumes following on its own.
+
 ## Log history
 
 Output is written to `~/.muster/logs/<workspace>/<group>/<service>.log` as

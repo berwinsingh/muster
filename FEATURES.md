@@ -122,13 +122,21 @@ are validated on the way in; the change reaches an idle group immediately
 and a running one at its next restart, which is when its processes can
 honestly be said to match the file.
 
-The log view follows output live (`f` toggles), scrolls with `↑↓`/wheel, and
-filters three composable ways: `v` cycles severity (all → errors → warnings
-→ info), `/` adds a text filter, and — in the combined all-services view
-(`a`, or `l` on a group row) — `tab` cycles focus between services, whose
-lines are tagged `[service]` in stable colors. A no-match indicator shows
-what the filters removed. Restarted services keep their log history with a
-`— restarted —` divider.
+The log view follows output live (`f` toggles) and filters three composable
+ways: `v` cycles severity (all → errors → warnings → info), `/` adds a text
+filter, and — in the combined all-services view (`a`, or `l` on a group
+row) — `tab` cycles focus between services, whose lines are tagged
+`[service]` in stable colors. A no-match indicator shows what the filters
+removed. Restarted services keep their log history with a `— restarted —`
+divider.
+
+Long lines wrap instead of being truncated, so the end of a stack-trace
+line — the line number and function, the part you actually need — survives;
+`w` switches back to truncation. Navigation is by screen row, so wrapped
+output pages predictably: `↑↓`/wheel, `PgUp`/`PgDn` by the screenful, `g`
+for the oldest line and `G` for the newest. The header shows the position
+(`paused  1–18 of 184`) whenever you're off the tail, and returning to the
+bottom resumes following.
 
 Standalone extras: an activity line above the footer narrates what the
 supervisor is doing (ready patterns, health checks, hooks), `l` on the
