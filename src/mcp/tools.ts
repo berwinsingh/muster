@@ -1,5 +1,6 @@
 import { LogLevel, filterLog, stripAnsi } from '../cli/logFilter';
-import { defaultWorkspaceHint, findDiscovery } from '../ipc/discovery';
+import { findConfigRoot } from '../cli/headlessConfig';
+import { defaultWorkspaceHint, findDiscovery, servesElsewhere } from '../ipc/discovery';
 
 const NOT_RUNNING_MESSAGE =
   'No Muster daemon or extension is reachable for this workspace. Start one with ' +
@@ -16,11 +17,25 @@ function resolveIpcPort(): number {
   // discovery file it writes on startup — a standalone daemon when one is
   // running for this workspace, else the extension. Same wire protocol
   // either way, so nothing below this line needs to know which it got.
-  const discovered = findDiscovery(defaultWorkspaceHint());
-  if (discovered) {
-    return discovered.port;
+  const here = defaultWorkspaceHint();
+  const discovered = findDiscovery(here);
+  if (!discovered) {
+    throw new Error(NOT_RUNNING_MESSAGE);
   }
-  throw new Error(NOT_RUNNING_MESSAGE);
+  // Same rule as the CLI, with a sharper consequence. These tools run and
+  // stop real processes, and there is no local config to fall back on — so
+  // when the reachable server belongs to someone else's workspace and this
+  // one has a config of its own, refuse. Acting on the wrong workspace is
+  // worse than doing nothing, and an agent cannot see a warning line.
+  const localRoot = findConfigRoot(here);
+  if (servesElsewhere(discovered.workspace, here, localRoot)) {
+    throw new Error(
+      `The reachable Muster ${discovered.kind ?? 'extension'} serves ${discovered.workspace}, ` +
+        `not ${localRoot}. Start one for this workspace with "muster daemon start ` +
+        '--allow-agent-actions", or set MUSTER_WORKSPACE to target another.'
+    );
+  }
+  return discovered.port;
 }
 
 async function ipcFetch(path: string, method = 'GET', body?: Record<string, unknown>): Promise<unknown> {

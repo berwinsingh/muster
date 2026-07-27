@@ -43,6 +43,26 @@ export function workspaceContains(workspace: string, dir: string): boolean {
   return target === root || target.startsWith(root + path.sep);
 }
 
+/**
+ * True when a discovered server should be ignored in favour of the config
+ * in `dir`: it serves an unrelated workspace, and `dir` has one of its own.
+ *
+ * findDiscovery falls back to any live server when nothing matches the
+ * current directory. That is right when you have no config of your own and
+ * wrong when you do — it answers for a stranger's workspace while your
+ * .vscode/muster.json sits right there. Both the CLI and the MCP server ask
+ * this question; what they can do about it differs (the CLI has a local
+ * config to fall back on, the MCP server can only refuse), so each phrases
+ * its own message and only the rule is shared.
+ */
+export function servesElsewhere(
+  serverWorkspace: string,
+  dir: string,
+  localRoot: string | null
+): boolean {
+  return localRoot !== null && !workspaceContains(serverWorkspace, dir);
+}
+
 export function isPidAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {

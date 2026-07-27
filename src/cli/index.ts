@@ -12,7 +12,8 @@
  * ever being open.
  */
 import * as path from 'path';
-import { CliGroup, CliGroupStatus, IpcClient, NOT_RUNNING, reconcileWorkspace } from './client';
+import { CliGroup, CliGroupStatus, IpcClient, NOT_RUNNING } from './client';
+import { servesElsewhere, workspaceContains } from '../ipc/discovery';
 import { detectServiceEnv } from './detect';
 import { localConfigPort } from './configPort';
 import { findConfigRoot, loadHeadlessConfig, substitute } from './headlessConfig';
@@ -308,8 +309,9 @@ function enrichWithDetection(service: ServiceInput, root: string, skip: boolean)
 
 /**
  * Connect to a running daemon or extension, or null to work standalone.
- * A server serving some other workspace gets called out — and skipped when
- * this directory has a config of its own. See reconcileWorkspace.
+ * A server serving some other workspace gets called out — and skipped in
+ * favour of the local config when this directory has one. See
+ * servesElsewhere.
  */
 function connectOrNull(): IpcClient | null {
   let client: IpcClient;
@@ -319,15 +321,16 @@ function connectOrNull(): IpcClient | null {
     return null;
   }
   const here = process.env.MUSTER_WORKSPACE ?? process.cwd();
-  const { useServer, notice } = reconcileWorkspace(
-    client.workspace,
-    client.kind,
-    here,
-    findConfigRoot(here)
-  );
+  if (workspaceContains(client.workspace, here)) return client;
+
+  const localRoot = findConfigRoot(here);
+  const standDown = servesElsewhere(client.workspace, here, localRoot);
+  const notice = standDown
+    ? `Ignoring the Muster ${client.kind} on ${client.workspace} — it serves a different workspace. Using the config in ${localRoot}.`
+    : `Showing the Muster ${client.kind} on ${client.workspace} — no .vscode/muster.json here (${here}).`;
   // stderr, so `muster ls --json` stays machine-readable.
-  if (notice) process.stderr.write(`${A.yellow}⚠${A.reset} ${A.dim}${notice}${A.reset}\n`);
-  return useServer ? client : null;
+  process.stderr.write(`${A.yellow}⚠${A.reset} ${A.dim}${notice}${A.reset}\n`);
+  return standDown ? null : client;
 }
 
 /** Load the local config (walking up from cwd), or fail with guidance. */

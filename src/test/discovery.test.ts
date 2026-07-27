@@ -8,10 +8,10 @@ import {
   findDiscovery,
   isPidAlive,
   removeDiscoveryFile,
+  servesElsewhere,
   workspaceContains,
   writeDiscoveryFile,
 } from '../ipc/discovery';
-import { reconcileWorkspace } from '../cli/client';
 
 function tmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'muster-discovery-'));
@@ -137,33 +137,28 @@ describe('ipc discovery', () => {
   });
 });
 
-describe('reconcileWorkspace', () => {
-  test('uses the server silently when it serves this directory', () => {
-    const r = reconcileWorkspace('/home/dev/app', 'daemon', '/home/dev/app/src', '/home/dev/app');
-    assert.equal(r.useServer, true);
-    assert.equal(r.notice, null);
+describe('servesElsewhere', () => {
+  test('false when the server serves this directory', () => {
+    assert.equal(servesElsewhere('/home/dev/app', '/home/dev/app/src', '/home/dev/app'), false);
   });
 
-  test('prefers the local config when the server serves an unrelated workspace', () => {
-    const r = reconcileWorkspace('/tmp/scratch/qa-workspace', 'extension', '/home/dev/app', '/home/dev/app');
-    assert.equal(r.useServer, false);
-    assert.ok(r.notice);
-    // Both paths named, so the mismatch is obvious without guessing.
-    assert.ok(r.notice.includes('/tmp/scratch/qa-workspace'));
-    assert.ok(r.notice.includes('/home/dev/app'));
+  test('true when the server is unrelated and this directory has a config', () => {
+    // The reproduced case: a stale extension host on a scratch workspace,
+    // run from a project with a perfectly good config of its own.
+    assert.equal(
+      servesElsewhere('/tmp/scratch/qa-workspace', '/home/dev/app', '/home/dev/app'),
+      true
+    );
   });
 
-  test('keeps the server but says so when this directory has no config', () => {
-    const r = reconcileWorkspace('/home/dev/app', 'daemon', '/home/dev', null);
-    assert.equal(r.useServer, true);
-    assert.ok(r.notice);
-    assert.ok(r.notice.includes('/home/dev/app'));
-    assert.ok(r.notice.includes('/home/dev'));
+  test('false with no local config — nothing better to fall back to', () => {
+    assert.equal(servesElsewhere('/home/dev/app', '/home/dev', null), false);
   });
 
-  test('a config in a parent of the served workspace does not count as serving it', () => {
-    // The server is deeper than the config root — cwd is outside it.
-    const r = reconcileWorkspace('/home/dev/app/packages/api', 'daemon', '/home/dev/app', '/home/dev/app');
-    assert.equal(r.useServer, false);
+  test('a server deeper than the config root does not serve it', () => {
+    assert.equal(
+      servesElsewhere('/home/dev/app/packages/api', '/home/dev/app', '/home/dev/app'),
+      true
+    );
   });
 });
