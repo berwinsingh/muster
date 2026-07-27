@@ -149,6 +149,84 @@ export function truncateAnsi(text: string, width: number): string {
   return out + A.reset;
 }
 
+/**
+ * Break a line into rows of at most `width` visible columns, keeping ANSI
+ * state across the break and indenting continuations so a wrapped path
+ * doesn't read as a new log line.
+ *
+ * Truncating instead loses the end of every line — and in a stack trace the
+ * end is the part you need: `File ".../session.py", line 2036, in commit`
+ * cuts to `File ".../session.py", line`. Wrapping keeps it.
+ *
+ * Prefers to break at a space near the end of the row, so paths and words
+ * stay whole when they reasonably can.
+ */
+export function wrapAnsi(text: string, width: number, indent = 2): string[] {
+  if (width < 4) return [text];
+  const rows: string[] = [];
+  // Escape codes seen so far, replayed at the head of each continuation.
+  let active = '';
+  let row = '';
+  let visible = 0;
+  let i = 0;
+  const limit = (): number => (rows.length === 0 ? width : width - indent);
+  const pad = (): string => (rows.length === 0 ? '' : ' '.repeat(indent));
+
+  const flush = (): void => {
+    rows.push(pad() + active + row + A.reset);
+    row = '';
+    visible = 0;
+  };
+
+  while (i < text.length) {
+    if (text[i] === '\x1b') {
+      const end = text.indexOf('m', i);
+      if (end === -1) break;
+      const code = text.slice(i, end + 1);
+      // A reset clears the carried state; anything else adds to it.
+      active = code === A.reset ? '' : active + code;
+      row += code;
+      i = end + 1;
+      continue;
+    }
+    if (visible >= limit()) {
+      // Back up to the last space, if there is one worth breaking at.
+      const lastSpace = row.lastIndexOf(' ');
+      if (lastSpace > 0 && visible - countVisible(row.slice(lastSpace)) > limit() / 2) {
+        const carry = row.slice(lastSpace + 1);
+        row = row.slice(0, lastSpace);
+        flush();
+        row = carry;
+        visible = countVisible(carry);
+      } else {
+        flush();
+      }
+    }
+    row += text[i];
+    visible += 1;
+    i += 1;
+  }
+  if (row.length > 0 || rows.length === 0) flush();
+  return rows;
+}
+
+/** Visible width of a string, ignoring ANSI escapes. */
+export function countVisible(text: string): number {
+  let visible = 0;
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '\x1b') {
+      const end = text.indexOf('m', i);
+      if (end === -1) break;
+      i = end + 1;
+      continue;
+    }
+    visible += 1;
+    i += 1;
+  }
+  return visible;
+}
+
 export function renderHeader(workspace: string, filter: string, width: number): string {
   const mark = `${A.amber}${A.bold} MUSTER ${A.reset}`;
   const ws = `${A.dim}${workspace}${A.reset}`;
@@ -187,6 +265,10 @@ export type LogsBarState = {
   level: string;
   /** Service focus label for combined views; undefined = single-service view. */
   focus?: string;
+  /** False when long lines are truncated rather than wrapped. */
+  wrap?: boolean;
+  /** False when the view is paused — the button offers the opposite action. */
+  following?: boolean;
 };
 
 /**
@@ -225,12 +307,15 @@ export function renderButtons(
           { key: ':', label: 'commands' },
           { key: 'q', label: quitLabel },
         ]
-      : [
-          { key: 'f', label: 'follow' },
+      : // `esc` first for the same reason as the form bar: the bar truncates
+        // from the right, and getting back out matters more than any toggle.
+        [
+          { key: '\x1b', label: 'back' },
+          { key: 'f', label: logs?.following === false ? 'follow' : 'pause' },
           { key: 'v', label: `level: ${logs?.level ?? 'all'}` },
+          { key: 'w', label: `wrap: ${logs?.wrap === false ? 'off' : 'on'}` },
           ...(logs?.focus !== undefined ? [{ key: '\t', label: `service: ${logs.focus}` }] : []),
           { key: '/', label: 'filter' },
-          { key: '\x1b', label: 'back' },
           { key: 'q', label: quitLabel },
         ];
 
