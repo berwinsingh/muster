@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0b0d10; }
+      /* Brand tokens, same values as docs/index.html in the muster repo. */
+      :root {
+        --bg: #0b0d10; --raise: #14181e; --line: rgba(255,255,255,0.09);
+        --text: #e8eaed; --muted: #aab3bd; --amber: #ffb454;
+        --green: #55d47a; --red: #ff8079; --blue: #8ac7ff;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+        --sans: "Space Grotesk", system-ui, sans-serif;
+      }
+      .fill { position: absolute; inset: 0; }
+      .term {
+        position: absolute; left: 210px; top: 180px; width: 1500px; height: 570px;
+        background: #14181e; border: 1px solid rgba(255,255,255,0.09);
+        border-radius: 18px; overflow: hidden;
+        box-shadow: 0 60px 120px rgba(0,0,0,0.55);
+      }
+      .bar {
+        height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);
+      }
+      .dot { width: 11px; height: 11px; border-radius: 999px; opacity: 0.55; }
+      .bar span { font-family: var(--mono); font-size: 16px; color: var(--muted); margin-left: 14px; }
+      .body {
+        position: absolute; left: 0; top: 48px; width: 100%;
+        padding: 26px 32px; font-family: var(--mono); font-size: 25px;
+        line-height: 1.6; color: var(--text);
+      }
+      .ln { display: block; opacity: 0; white-space: pre; font-weight: 400; }
+      .dim { color: var(--muted); }
+      .amber { color: var(--amber); }
+      .green { color: var(--green); }
+      .red { color: var(--red); }
+      .blue { color: var(--blue); }
+      .caption {
+        position: absolute; left: 0; width: 1920px; text-align: center;
+        font-family: var(--sans); color: var(--text); opacity: 0;
+      }
+      #cap-fail { top: 820px; font-size: 56px; font-weight: 600; }
+      #cap-tools { top: 810px; font-size: 42px; font-weight: 500; }
+      #tool-row {
+        position: absolute; top: 890px; left: 0; width: 1920px; text-align: center;
+        font-family: var(--mono); font-size: 30px; color: var(--muted); opacity: 0;
+      }
+      #cap-wait { top: 830px; font-size: 52px; font-weight: 600; }
+      #outro { position: absolute; inset: 0; opacity: 0; }
+      #outro-inner { position: absolute; left: 0; top: 390px; width: 1920px; text-align: center; }
+      .mark { display: inline-flex; flex-direction: column; gap: 7px; align-items: flex-start; }
+      .mark i { display: block; height: 11px; border-radius: 4px; background: var(--amber); }
+      #wordmark {
+        font-family: var(--mono); font-weight: 600; font-size: 68px;
+        letter-spacing: 0.12em; color: var(--text);
+      }
+      #tagline { margin-top: 36px; font-family: var(--sans); font-size: 46px; font-weight: 600; color: var(--text); }
+      #repo { margin-top: 30px; font-family: var(--mono); font-size: 31px; color: var(--muted); }
+      #caret { display: inline-block; width: 14px; height: 26px; background: var(--amber); vertical-align: -3px; margin-left: 4px; }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="22"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- Full-bleed fill lives on a child, never the root: the producer can
+           drop the root element's own background and render the frame black. -->
+      <div class="fill" style="background: #0b0d10"></div>
+      <div
+        class="fill" id="glow"
+        style="background: radial-gradient(1100px 620px at 50% 44%, rgba(255,180,84,0.07), transparent 70%)"
+      ></div>
+
+      <div class="term" id="term">
+        <div class="bar">
+          <div class="dot" style="background:#f47067"></div>
+          <div class="dot" style="background:#f2cc60"></div>
+          <div class="dot" style="background:#4ecb71"></div>
+          <span>zsh — ~/docq</span>
+        </div>
+        <div class="body" id="act1">
+          <!-- ACT 1 — real output from a run with no ordering. -->
+          <b class="ln" id="a1"><span class="dim">$ </span>./dev.sh</b>
+          <b class="ln" id="a2">starting PostgreSQL 16...</b>
+          <b class="ln" id="a3">uvicorn: connecting to database on :5432 ...</b>
+          <b class="ln" id="a4"><span class="red">FATAL:  could not connect to server: Connection refused</span></b>
+          <b class="ln" id="a5"><span class="green">database system is ready to accept connections</span></b>
+
+        </div>
+        <div class="body" id="act3">
+          <!-- ACT 3 — real output from `muster up docq`. -->
+          <b class="ln" id="b1"><span class="dim">$ </span>muster up docq</b>
+          <b class="ln" id="b2"><span class="amber">[muster]</span> <span class="dim">order: sequence</span></b>
+          <b class="ln" id="b3"><span class="amber">[muster]</span> ▶ db — python db.py</b>
+          <b class="ln" id="b4"><span class="amber">[muster]</span> <span class="dim">waiting for ready pattern on db…</span></b>
+          <b class="ln" id="b5"><span class="blue">[db]</span> <span class="green">database system is ready to accept connections</span></b>
+          <b class="ln" id="b6"><span class="amber">[muster]</span> ready pattern matched on db</b>
+          <b class="ln" id="b7"><span class="amber">[muster]</span> ▶ api — python api.py</b>
+          <b class="ln" id="b8"><span class="green">[api]</span> uvicorn: Application startup complete.</b>
+          <b class="ln" id="b9"><span class="amber">[muster]</span> docq · <span class="green">2/2 services running</span><i id="caret"></i></b>
+        </div>
+      </div>
+
+      <div class="caption" id="cap-fail">Your API started before your database.</div>
+      <div class="caption" id="cap-tools">concurrently, npm-run-all and turbo start everything at once.</div>
+      <div id="tool-row">turbo #8484 — closed, not planned</div>
+      <div class="caption" id="cap-wait">Muster waits for a ready signal.</div>
+
+      <div id="outro">
+        <div id="outro-inner">
+          <div style="display:flex; gap:26px; align-items:center; justify-content:center">
+            <span class="mark">
+              <i style="width:48px"></i><i style="width:34px; opacity:.75"></i><i style="width:21px; opacity:.5"></i>
+            </span>
+            <span id="wordmark">MUSTER</span>
+          </div>
+          <div id="tagline">Start the stack in the right order.</div>
+          <div id="repo">github.com/berwinsingh/muster</div>
+        </div>
+      </div>
+
+      <audio
+        id="music"
+        src="assets/music/track.mp3"
+        data-timeline-role="music"
+        data-start="0"
+        data-duration="22"
+        data-media-start="0"
+        data-track-index="9"
+        data-volume="0.3"
+      ></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // A log line lands; it does not drift in.
+      const line = (sel, at, dur = 0.22) =>
+        tl.fromTo(sel, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: dur, ease: "power2.out" }, at);
+
+      // ---- ACT 1: the failure (0 – 7.4s) --------------------------------
+      line("#a1", 0.35);
+      line("#a2", 1.15);
+      line("#a3", 1.75);
+      line("#a4", 2.95, 0.18);          // the error
+      line("#a5", 4.5, 0.18);           // …and the DB reports ready, too late
+      tl.fromTo("#cap-fail", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 5.1);
+
+      tl.to(["#a1", "#a2", "#a3", "#a4", "#a5"], { opacity: 0, duration: 0.35, ease: "power2.in" }, 7.0);
+      tl.to("#cap-fail", { opacity: 0, y: -14, duration: 0.35, ease: "power2.in" }, 7.0);
+
+      // ---- ACT 2: why the usual tools don't fix it (7.4 – 10.6s) --------
+      tl.to("#term", { opacity: 0.25, scale: 0.985, duration: 0.5, ease: "power2.inOut" }, 7.2);
+      tl.fromTo("#cap-tools", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }, 7.6);
+      tl.fromTo("#tool-row", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 8.5);
+      tl.to(["#cap-tools", "#tool-row"], { opacity: 0, y: -12, duration: 0.35, ease: "power2.in" }, 10.3);
+      tl.to("#term", { opacity: 1, scale: 1, duration: 0.5, ease: "power2.inOut" }, 10.3);
+
+      // ---- ACT 3: muster, in the right order (10.8 – 17.6s) -------------
+      line("#b1", 10.9);
+      line("#b2", 11.6);
+      line("#b3", 12.1);
+      line("#b4", 12.6);
+      // The hold. This pause is the product.
+      tl.fromTo("#cap-wait", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 13.0);
+      line("#b5", 14.3);
+      tl.to("#cap-wait", { opacity: 0, y: -12, duration: 0.3, ease: "power2.in" }, 14.5);
+      line("#b6", 14.9);
+      line("#b7", 15.4);
+      line("#b8", 15.9, 0.2);
+      line("#b9", 16.5, 0.2);           // lands on a strong cue in the track's grid
+      tl.to("#glow", { opacity: 1.9, duration: 0.5, ease: "power2.out" }, 16.5);
+      tl.to("#glow", { opacity: 1, duration: 1.0, ease: "power2.inOut" }, 17.0);
+
+      // The caret keeps a pulse on screen through the act-3 hold, so no stretch
+      // of the sweep is fully static (hyperframes `check` fails a frozen sweep).
+      for (let i = 0; i < 3; i++) {
+        tl.set("#caret", { opacity: 0 }, 16.95 + i * 0.53);
+        tl.set("#caret", { opacity: 1 }, 17.21 + i * 0.53);
+      }
+
+      // ---- OUTRO (18.0 – 22s) -------------------------------------------
+      tl.to("#term", { opacity: 0, y: -26, duration: 0.6, ease: "power2.in" }, 18.0);
+      tl.fromTo("#outro", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 18.4);
+      tl.fromTo("#outro-inner", { opacity: 0, y: 26, scale: 0.97 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "power2.out" }, 18.5);
+      tl.fromTo("#tagline", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 19.2);
+      tl.fromTo("#repo", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 19.9);
+      // Slow settle so the final seconds are never a frozen frame.
+      tl.to("#outro-inner", { scale: 1.014, duration: 1.9, ease: "none" }, 20.0);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
