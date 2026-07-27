@@ -1,4 +1,9 @@
-import { IpcServerKind, defaultWorkspaceHint, findDiscovery } from '../ipc/discovery';
+import {
+  IpcServerKind,
+  defaultWorkspaceHint,
+  findDiscovery,
+  workspaceContains,
+} from '../ipc/discovery';
 
 export type CliService = { id: string; name: string; command: string; port?: number };
 export type CliGroup = {
@@ -17,6 +22,35 @@ export type CliGroupStatus = {
 export const NOT_RUNNING =
   'Could not reach a Muster daemon or extension. Start one with "muster daemon start", ' +
   'or open the workspace in VS Code (or Cursor) with the Muster extension installed, then retry.';
+
+/**
+ * Decide whether a discovered server should answer for `dir`.
+ *
+ * findDiscovery deliberately falls back to any live server when no entry
+ * matches the current directory — right when you are somewhere with no
+ * config of your own, wrong when you are not: it silently lists a stranger's
+ * groups where your own .vscode/muster.json was sitting right there. So when
+ * the server serves an unrelated workspace, say which is which, and stand
+ * down in favour of the local config when there is one to stand down to.
+ */
+export function reconcileWorkspace(
+  serverWorkspace: string,
+  kind: IpcServerKind,
+  dir: string,
+  localRoot: string | null
+): { useServer: boolean; notice: string | null } {
+  if (workspaceContains(serverWorkspace, dir)) return { useServer: true, notice: null };
+  if (localRoot) {
+    return {
+      useServer: false,
+      notice: `Ignoring the Muster ${kind} on ${serverWorkspace} — it serves a different workspace. Using the config in ${localRoot}.`,
+    };
+  }
+  return {
+    useServer: true,
+    notice: `Showing the Muster ${kind} on ${serverWorkspace} — no .vscode/muster.json here (${dir}).`,
+  };
+}
 
 export class IpcClient {
   private constructor(
