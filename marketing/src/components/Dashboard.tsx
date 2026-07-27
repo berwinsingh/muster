@@ -28,7 +28,13 @@ const Row: React.FC<{
   selected?: boolean;
   /** 0–1, fades the row in on first paint. */
   reveal?: number;
-}> = ({ service, state, selected, reveal = 1 }) => {
+  /**
+   * 0–1, decaying: how recently this service came up. Drives a one-shot
+   * flash across the row and a pop on the dot, so five services starting
+   * reads as five events rather than as a colour change.
+   */
+  justReady?: number;
+}> = ({ service, state, selected, reveal = 1, justReady = 0 }) => {
   const dot = DOT[state];
   return (
     <div
@@ -38,12 +44,25 @@ const Row: React.FC<{
         gap: 14,
         padding: '4px 12px',
         borderRadius: 8,
-        background: selected ? 'rgba(255,180,84,0.10)' : 'transparent',
+        background: selected
+          ? 'rgba(255,180,84,0.10)'
+          : `rgba(78,203,113,${0.16 * justReady})`,
         opacity: reveal,
+        transform: `translateX(${justReady * 5}px)`,
       }}
     >
       <span style={{ color: C.amber, width: 16 }}>{selected ? '▸' : ' '}</span>
-      <span style={{ color: dot.color, width: 18 }}>{dot.glyph}</span>
+      <span
+        style={{
+          color: dot.color,
+          width: 18,
+          display: 'inline-block',
+          transform: `scale(${1 + justReady * 0.7})`,
+          textShadow: justReady > 0 ? `0 0 ${18 * justReady}px ${dot.color}` : undefined,
+        }}
+      >
+        {dot.glyph}
+      </span>
       <span style={{ color: C.text, minWidth: 190 }}>{service.name}</span>
       <span style={{ color: C.blue, minWidth: 78 }}>
         {service.port ? `:${service.port}` : ''}
@@ -64,6 +83,8 @@ export const Dashboard: React.FC<{
   selected?: number;
   /** 0–1 per row, for staggered entrances. */
   rowReveal?: number[];
+  /** 0–1 per row, decaying — see Row.justReady. */
+  rowFlash?: number[];
   activity?: string;
   showFooter?: boolean;
 }> = ({
@@ -74,6 +95,7 @@ export const Dashboard: React.FC<{
   states,
   selected,
   rowReveal,
+  rowFlash,
   activity,
   showFooter = true,
 }) => {
@@ -120,11 +142,14 @@ export const Dashboard: React.FC<{
             marginLeft: 'auto',
           }}
         >
-          {groupState === 'running'
-            ? `${running}/${services.length} running`
-            : groupState === 'starting'
+          {/* Counts up as each service lands, rather than jumping from
+              "starting…" straight to the full total — which is also what
+              the real dashboard shows. */}
+          {groupState === 'idle'
+            ? 'idle'
+            : running === 0
               ? 'starting…'
-              : 'idle'}
+              : `${running}/${services.length} running`}
         </span>
       </div>
 
@@ -136,6 +161,7 @@ export const Dashboard: React.FC<{
             state={states[i]}
             selected={selected === i}
             reveal={rowReveal?.[i] ?? 1}
+            justReady={rowFlash?.[i] ?? 0}
           />
         ))}
       </div>

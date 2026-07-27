@@ -59,13 +59,15 @@ export const Statement: React.FC<{
           {line.map((word, wi) => {
             const delay = wordIndex * 3;
             wordIndex += 1;
+            // Underdamped on purpose: each word overshoots a little and
+            // settles. Fully damped, the line arrives without ever landing.
             const enter = spring({
               frame: frame - delay,
               fps,
-              // Heavily damped: it settles rather than bounces.
-              config: { damping: 200, mass: 0.7 },
-              durationInFrames: 26,
+              config: { damping: 13, mass: 0.5, stiffness: 110 },
+              durationInFrames: 30,
             });
+            const appear = Math.min(1, Math.max(0, enter));
             return (
               <span
                 key={wi}
@@ -76,10 +78,13 @@ export const Statement: React.FC<{
                   letterSpacing: '-0.02em',
                   lineHeight: 1.12,
                   color: word.highlight ? C.amber : C.text,
-                  opacity: enter,
-                  transform: `translateY(${(1 - enter) * 22}px)`,
-                  filter: `blur(${(1 - enter) * 7}px)`,
+                  opacity: appear,
+                  transform: `translateY(${(1 - enter) * 26}px) scale(${0.86 + 0.14 * enter})`,
+                  filter: `blur(${(1 - appear) * 9}px)`,
                   display: 'inline-block',
+                  textShadow: word.highlight
+                    ? `0 0 ${44 * appear}px rgba(255,180,84,0.35)`
+                    : undefined,
                 }}
               >
                 {word.text}

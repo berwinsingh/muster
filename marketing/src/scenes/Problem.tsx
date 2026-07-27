@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { C } from '../theme';
 import { mono, sans } from '../fonts';
 import { Backdrop } from '../components/Statement';
@@ -28,6 +28,21 @@ export const Problem: React.FC = () => {
     extrapolateRight: 'clamp',
   });
 
+  /**
+   * The collapse. Rather than fading the clutter out and cutting to a
+   * clean shot, every window is pulled into the centre and crushed to a
+   * point — which the next scene expands out of. It's the whole pitch in
+   * one move: six things become one.
+   */
+  const collapse = interpolate(frame, [108, 142], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+    // Accelerating, not springy: the windows should look *pulled* inward,
+    // gathering speed. A spring here reached 95% in a third of the time and
+    // the travel was over before the eye could follow it.
+    easing: Easing.in(Easing.cubic),
+  });
+
   return (
     <AbsoluteFill>
       <Backdrop glow={0.25} />
@@ -36,9 +51,11 @@ export const Problem: React.FC = () => {
         style={{
           alignItems: 'center',
           justifyContent: 'center',
-          transform: `scale(${1 - 0.06 * recede})`,
-          opacity: 1 - 0.72 * recede,
-          filter: `blur(${5 * recede}px)`,
+          // Only a light recede — the windows have to stay legible enough
+          // that the collapse below reads as *them* being gathered up.
+          transform: `scale(${1 - 0.03 * recede})`,
+          opacity: 1 - 0.35 * recede,
+          filter: `blur(${2 * recede}px)`,
         }}
       >
         {WINDOWS.map((w, i) => {
@@ -53,8 +70,15 @@ export const Problem: React.FC = () => {
               key={i}
               style={{
                 position: 'absolute',
-                transform: `translate(${w.x}px, ${w.y}px) scale(${0.9 + 0.1 * enter})`,
-                opacity: enter * 0.96,
+                // Position and scale both interpolate toward the centre, so
+                // the windows converge rather than merely shrinking in place.
+                transform: `translate(${w.x * (1 - collapse)}px, ${
+                  w.y * (1 - collapse)
+                }px) scale(${(0.9 + 0.1 * enter) * (1 - 0.94 * collapse)})`,
+                opacity:
+                  enter *
+                  0.96 *
+                  (1 - Math.max(0, (collapse - 0.78) / 0.22)),
                 width: 640,
                 borderRadius: 12,
                 background: C.bgRaise,
@@ -116,14 +140,17 @@ export const Problem: React.FC = () => {
             letterSpacing: '-0.02em',
             color: C.text,
             textAlign: 'center',
-            opacity: interpolate(frame, [84, 104], [0, 1], {
+            // In on the beat, out on the collapse — the line shouldn't
+            // linger over a frame that has already moved on.
+            opacity:
+              interpolate(frame, [84, 100], [0, 1], {
+                extrapolateLeft: 'clamp',
+                extrapolateRight: 'clamp',
+              }) * (1 - Math.max(0, (collapse - 0.45) / 0.55)),
+            transform: `translateY(${interpolate(frame, [84, 100], [16, 0], {
               extrapolateLeft: 'clamp',
               extrapolateRight: 'clamp',
-            }),
-            transform: `translateY(${interpolate(frame, [84, 104], [16, 0], {
-              extrapolateLeft: 'clamp',
-              extrapolateRight: 'clamp',
-            })}px)`,
+            })}px) scale(${1 - 0.08 * collapse})`,
           }}
         >
           Every morning,
